@@ -341,7 +341,7 @@ def union(trapezoids: list[FS]) -> tuple:
 
     if len(trapezoids) == 1:
         p_x = trapezoids[0].membership_parameters
-        h = np.max(p_x)
+        h = trapezoids[0].height
         p_y = [0, h, h, 0]
         return p_x, p_y
     
@@ -349,9 +349,9 @@ def union(trapezoids: list[FS]) -> tuple:
     segments = []
 
     for i, trapezoid in enumerate(trapezoids):
-        p_x = trapezoid.membership_parameters
-        h = np.max(p_x)
-        x1, x2, x3, x4 = p_x[0], p_x[1], p_x[2], p_x[3]
+        t_x = trapezoid.membership_parameters
+        h = trapezoids[i].height
+        x1, x2, x3, x4 = t_x[0], t_x[1], t_x[2], t_x[3]
         h1, h2, h3, h4 = 0, h, h, 0
         p_x.update([x1, x2, x3, x4])
         
@@ -378,7 +378,37 @@ def union(trapezoids: list[FS]) -> tuple:
 
     p_x = np.sort(np.array(list(p_x)))
     
-    y_values = np.array([np.interp(p_x, trapezoid.p_x, trapezoid.p_y) for trapezoid in trapezoids])
-    p_y = np.maximum.reduce(y_values)
+    y_values = np.array([fs.membership(p_x) for fs in trapezoids])
+    p_y = np.max(y_values, axis=0)
     
     return p_x, p_y
+
+
+def centroid_defuzzification(p_x, p_y) -> float:
+    if len(p_x) != len(p_y):
+        return -np.inf
+
+    num = 0
+    den = 0
+
+    for i in range(len(p_x)-1):
+        # segment points
+        a, y_a = (p_x[i], p_y[i])
+        b, y_b = (p_x[i+1], p_y[i+1])
+        
+        # line equation
+        m = (y_b - y_a) / (b - a)
+        n = -m*a + y_a
+
+        # algebraic integration
+        ba = b - a
+        ba2 = b**2 / 2 - a**2 / 2
+        ba3 = b**3 / 3 - a**3 / 3
+
+        num += (m*ba3 + n*ba2) 
+        den += (m*ba2 + n*ba)
+
+    x_crisp = num / den
+    return x_crisp
+
+

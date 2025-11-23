@@ -53,22 +53,18 @@ def test_cut_function():
     assert fs4.height == 1, '[h=1] Cut max height not correctly computed'
 
 def test_trapezoidal_union_function():
-    t1_x = [0, 1, 3, 5]
-    t1_h = [0, 0.3, 0.3, 0]
+    fs1 = fs.TrapezoidalFS("T1", [0, 2, 3, 4], [0, 6], 0.7)
+    fs2 = fs.TrapezoidalFS("T2", [2, 3, 4, 6], [0, 6])
 
-    t2_x = [2, 4, 5, 6]
-    t2_h = [0, 0.4, 0.4, 0]
+    u_x, u_y = fs.union([fs1, fs2])
 
-    t3_x = [1, 3, 4, 7]
-    t3_h = [0, 0.55, 0.55, 0]
+    assert u_x == pytest.approx([0, 2, 2.7, 3, 4, 6])
+    assert u_y == pytest.approx([0, 0.7, 0.7, 1, 1, 0])
 
-    t4_x = [5, 6, 7, 9]
-    t4_h = [0, 0.9, 0.9, 0]
-    pass
+def test_centroid_defuzzification():
+    p_x1 = np.array([0, 2, 2.7, 3, 4, 6])
+    p_y1 = np.array([0, 0.7, 0.7, 1, 1, 0])
 
+    x_crisp_cont1 = fs.centroid_defuzzification(p_x1, p_y1)
 
-if __name__ == '__main__':
-    test_trapezoidal_membership_function()
-    test_triangular_membership_function()
-    test_cut_function()
-    test_trapezoidal_union_function()
+    assert round(x_crisp_cont1, 3) == 3.187
