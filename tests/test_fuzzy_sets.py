@@ -45,7 +45,7 @@ def test_cut_function():
     assert fs2.height == 0.5, '[h=0.5] Cut max height not correctly computed'
 
     fs3 = fs.cut(fs_test, h=0)
-    assert fs3.membership_parameters == [0], '[h=0] Cut membership parameters not correctly computed'
+    assert fs3.membership_parameters == [0, 0, 0, 0], '[h=0] Cut membership parameters not correctly computed'
     assert fs3.height == 0, '[h=0] Cut max height not correctly computed'
 
     fs4 = fs.cut(fs_test, h=1)

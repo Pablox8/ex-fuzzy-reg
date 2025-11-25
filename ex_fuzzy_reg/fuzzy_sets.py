@@ -392,27 +392,27 @@ def centroid_defuzzification(p_x, p_y) -> float:
     if len(p_x) != len(p_y):
         return -np.inf
 
-    num = 0
-    den = 0
+    p_x = np.asarray(p_x)
+    p_y = np.asarray(p_y)
 
-    for i in range(len(p_x)-1):
-        # segment points
-        a, y_a = (p_x[i], p_y[i])
-        b, y_b = (p_x[i+1], p_y[i+1])
-        
-        # line equation
-        m = (y_b - y_a) / (b - a)
-        n = -m*a + y_a
+    # segment points
+    a  = p_x[:-1]
+    b  = p_x[1:] 
+    y_a = p_y[:-1]
+    y_b = p_y[1:] 
 
-        # algebraic integration
-        ba = b - a
-        ba2 = b**2 / 2 - a**2 / 2
-        ba3 = b**3 / 3 - a**3 / 3
+    # line equation
+    m = (y_b - y_a) / (b - a)
+    n = y_a - m * a
 
-        num += (m*ba3 + n*ba2) 
-        den += (m*ba2 + n*ba)
+    # precompute powers
+    ba   = b - a
+    ba2  = (b**2 - a**2) / 2
+    ba3  = (b**3 - a**3) / 3
 
-    x_crisp = num / den
+    # algebraic integration
+    num = m * ba3 + n * ba2
+    den = m * ba2 + n * ba
+
+    x_crisp = np.sum(num) / np.sum(den)
     return x_crisp
-
-
