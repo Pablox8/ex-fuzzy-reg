@@ -1,4 +1,7 @@
-from fuzzy_sets import FS
+from typing import Generator
+import numpy as np
+
+from ex_fuzzy_reg.fuzzy_sets import FS, FUZZY_SETS
 
 
 class FuzzyVariable():

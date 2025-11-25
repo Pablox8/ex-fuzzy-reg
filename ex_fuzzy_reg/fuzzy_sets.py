@@ -1,5 +1,5 @@
 import enum
-from typing import Generator
+import abc
 
 import numpy as np
 import pandas as pd
@@ -100,6 +100,7 @@ class FS():
         self.membership_parameters = membership_parameters
 
 
+    @abc.abstractmethod
     def membership(self, x: np.array) -> np.array:
         """
         Compute membership degrees for input values.
@@ -115,9 +116,10 @@ class FS():
             np.array: Membership degree(s) in the range [0, 1]. Shape matches input.
 
         """
-        pass
+        raise NotImplementedError
 
 
+    @abc.abstractmethod
     def type(self) -> FUZZY_SETS:
         """
         Return the fuzzy set type identifier.
@@ -125,25 +127,27 @@ class FS():
         Returns:
             FUZZY_SETS: The type identifier (FUZZY_SETS.t1 for Type-1 fuzzy sets)
         """
-        pass
+        raise NotImplementedError
     
 
+    @abc.abstractmethod
     def __str__(self) -> str:
         '''
         Returns the name of the fuzzy set, its type and its parameters.
         
         :return: string.
         '''
-        pass
+        raise NotImplementedError
     
 
+    @abc.abstractmethod
     def shape(self) -> str:
         '''
         Returns the shape of the fuzzy set.
 
         :return: string.
         '''
-        pass
+        raise NotImplementedError
 
 
 class TrapezoidalFS(FS):
@@ -296,7 +300,7 @@ def cut(fs1: FS, h: float) -> TrapezoidalFS:
         return None
 
     if h == 0:
-        fs2 = TrapezoidalFS(f"cut {fs1.name}",  [0], fs1.domain, h)
+        fs2 = TrapezoidalFS(f"cut {fs1.name}",  [0, 0, 0, 0], fs1.domain, h)
         return fs2
     if h == 1:
         fs2 = TrapezoidalFS(f"cut {fs1.name}", fs1.membership_parameters, fs1.domain, h)
