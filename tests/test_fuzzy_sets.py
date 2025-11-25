@@ -24,6 +24,7 @@ def test_trapezoidal_membership_function():
     assert result[5] == 0.0  # At end
     assert result[6] == 0.0  # After end
 
+
 def test_triangular_membership_function():
     """Test triangular membership function."""
     # Triangular: [a, b, c] where b is the peak
@@ -35,6 +36,7 @@ def test_triangular_membership_function():
     assert result[0] == 0.0  # At left base
     assert result[2] == 1.0  # At peak
     assert result[4] == 0.0  # At right base
+
 
 def test_cut_function():
     """Tests that cut compute correctly."""
@@ -52,6 +54,7 @@ def test_cut_function():
     assert fs4.membership_parameters == [1, 2, 3, 4], '[h=1] Cut membership parameters not correctly computed'
     assert fs4.height == 1, '[h=1] Cut max height not correctly computed'
 
+
 def test_trapezoidal_union_function():
     fs1 = fs.TrapezoidalFS("T1", [0, 2, 3, 4], [0, 6], 0.7)
     fs2 = fs.TrapezoidalFS("T2", [2, 3, 4, 6], [0, 6])
@@ -60,6 +63,7 @@ def test_trapezoidal_union_function():
 
     assert u_x == pytest.approx([0, 2, 2.7, 3, 4, 6])
     assert u_y == pytest.approx([0, 0.7, 0.7, 1, 1, 0])
+
 
 def test_centroid_defuzzification():
     p_x1 = np.array([0, 2, 2.7, 3, 4, 6])
