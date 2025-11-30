@@ -150,6 +150,16 @@ class FS():
         raise NotImplementedError
 
 
+    @abc.abstractmethod
+    def is_empty(self) -> bool:
+        '''
+        Returns True if the fuzzy set is empty (all parameters are 0).
+
+        :return: bool.
+        '''
+        raise NotImplementedError
+
+
 class TrapezoidalFS(FS):
     def __init__(self, name: str, membership_parameters: list[float], domain: list[float], height: float=1.0) -> None:
         super().__init__(name, membership_parameters, domain)
@@ -191,6 +201,10 @@ class TrapezoidalFS(FS):
             return np.clip(min(aux1, aux2), 0.0, h)
 
 
+    def is_empty(self) -> bool:
+        return self.membership_parameters == [0, 0, 0, 0]
+
+
     def type(self) -> FUZZY_SETS:
         return FUZZY_SETS.t1
     
@@ -216,7 +230,7 @@ class TriangularFS(FS):
         if b == a:
             b += epsilon
         if b == c:
-            b -= epsilon
+            c += epsilon
 
         aux1 = h*(x - a) / (b - a)
         aux2 = -h*(x - c) / (c - b)
@@ -302,7 +316,7 @@ def cut(fs1: FS, h: float) -> TrapezoidalFS:
     if h == 0:
         fs2 = TrapezoidalFS(f"cut {fs1.name}",  [0, 0, 0, 0], fs1.domain, h)
         return fs2
-    if h == 1:
+    if h == 1 and fs1.shape() == 'trapezoid':
         fs2 = TrapezoidalFS(f"cut {fs1.name}", fs1.membership_parameters, fs1.domain, h)
         return fs2
     
@@ -322,11 +336,17 @@ def cut(fs1: FS, h: float) -> TrapezoidalFS:
 def compute_intersection_x(s1, s2) -> float:
     x1, y1 = s1[0]
     x2, y2 = s1[1]
-    m = (y2 - y1) / (x2 - x1)
-
     x1_p, y1_p = s2[0]
     x2_p, y2_p = s2[1]
+
+    if x2 == x1 or x2_p == x1_p:
+        return None
+
+    m = (y2 - y1) / (x2 - x1)
     m_p = (y2_p - y1_p) / (x2_p - x1_p)
+
+    if m == m_p:
+        return None
 
     x = (m*x1 - m_p*x1_p + y1_p - y1) / (m - m_p)
     return x
@@ -353,16 +373,20 @@ def union(trapezoids: list[FS]) -> tuple:
     segments = []
 
     for i, trapezoid in enumerate(trapezoids):
-        t_x = trapezoid.membership_parameters
-        h = trapezoids[i].height
-        x1, x2, x3, x4 = t_x[0], t_x[1], t_x[2], t_x[3]
-        h1, h2, h3, h4 = 0, h, h, 0
-        p_x.update([x1, x2, x3, x4])
-        
-        segments.append(([(x1,h1),(x2,h2)], i))
-        segments.append(([(x2,h2),(x3,h3)], i))
-        segments.append(([(x3,h3),(x4,h4)], i))
-      
+        if not trapezoid.is_empty():
+            t_x = trapezoid.membership_parameters
+            h = trapezoids[i].height
+            x1, x2, x3, x4 = t_x[0], t_x[1], t_x[2], t_x[3]
+            h1, h2, h3, h4 = 0, h, h, 0
+            p_x.update([x1, x2, x3, x4])
+            
+            segments.append(([(x1,h1),(x2,h2)], i))
+            segments.append(([(x2,h2),(x3,h3)], i))
+            segments.append(([(x3,h3),(x4,h4)], i))
+
+    if p_x == set():
+        return None, None
+
     for i in range(len(segments)):
         s1, idx1 = segments[i]
         for j in range(i + 1, len(segments)):
@@ -370,25 +394,24 @@ def union(trapezoids: list[FS]) -> tuple:
             
             # only intersect segments from different trapezoids
             if idx1 != idx2 and segments_may_intersect(s1, s2):
-                try:
-                    x_intersect = compute_intersection_x(s1, s2)
+                x_intersect = compute_intersection_x(s1, s2)
                     
-                    # check if intersection lies within both segments
-                    if (s1[0][0] <= x_intersect <= s1[1][0] and s2[0][0] <= x_intersect <= s2[1][0]):
-                        p_x.add(x_intersect)
-
-                except ZeroDivisionError: # parallel lines, no intersection
-                    pass
+                # check if intersection lies within both segments
+                if x_intersect is not None and (s1[0][0] <= x_intersect <= s1[1][0] and s2[0][0] <= x_intersect <= s2[1][0]):
+                    p_x.add(x_intersect)
 
     p_x = np.sort(np.array(list(p_x)))
     
-    y_values = np.array([fs.membership(p_x) for fs in trapezoids])
+    y_values = np.array([fs.membership(p_x) for fs in trapezoids if not fs.is_empty()])
     p_y = np.max(y_values, axis=0)
     
     return p_x, p_y
 
 
 def centroid_defuzzification(p_x, p_y) -> float:
+    if p_x is None or p_y is None:
+        return -np.inf
+
     if len(p_x) != len(p_y):
         return -np.inf
 
@@ -415,4 +438,8 @@ def centroid_defuzzification(p_x, p_y) -> float:
     den = m * ba2 + n * ba
 
     x_crisp = np.sum(num) / np.sum(den)
+
+    if np.isnan(x_crisp):
+        x_crisp = 0
+
     return x_crisp
