@@ -223,7 +223,7 @@ class TriangularFS(FS):
         self.height = height
 
 
-    def membership(self, x: np.array, epsilon=10E-5) -> np.array:
+    """ def membership(self, x: np.array, epsilon=10E-5) -> np.array:
         a, b, c = self.membership_parameters
         h = self.height
 
@@ -254,7 +254,33 @@ class TriangularFS(FS):
 
         else:  # valor escalar
             val = min(aux1, aux2)
-            return np.clip(val, 0.0, h)
+            return np.clip(val, 0.0, h) """
+
+    
+    def membership(self, x: np.ndarray) -> np.ndarray:
+        a, b, c = self.membership_parameters
+        h = self.height
+
+        result = np.zeros_like(x, dtype=float)
+        valid = (a <= x) & (x <= c)
+        
+        # left side: v1 to v2
+        if a == b:
+            left_mask = valid & (x <= b)
+            result[left_mask] = h
+        else:
+            left_mask = valid & (x <= b)
+            result[left_mask] = h * (x[left_mask] - a) / (b - a)
+        
+        # right side: v2 to v3
+        if b == c:
+            right_mask = valid & (x >= b)
+            result[right_mask] = h
+        else:
+            right_mask = valid & (x > b)
+            result[right_mask] = h * (c - x[right_mask]) / (c - b)
+        
+        return result
 
 
     def type(self) -> FUZZY_SETS:

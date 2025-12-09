@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from ex_fuzzy_reg import fuzzy_sets as fs
 from ex_fuzzy_reg import fuzzy_variable as fv
-from ex_fuzzy_reg import rules as r
+from ex_fuzzy_reg import rules_reg as r
 
 
 def rule_base_t1_demo():
@@ -32,7 +32,7 @@ def rule_base_t1_demo():
     R4 = r.RuleSimple([2, 2], 2)  # Good, Good -> High
     R5 = r.RuleSimple([1, 1], 1)  # Medium, Medium -> Medium
 
-    RB = r.RuleBaseT1(
+    RB = r.RuleBaseRegT1(
         antecedents=[service, food],
         rules=[R1, R2, R3, R4, R5],
         consequent=tip
