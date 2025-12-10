@@ -31,7 +31,7 @@ class RuleBaseRegT1(RuleBase):
         self.tnorm = tnorm
 
 
-    def compute_antecedents_memberships(self, x: np.array) -> np.ndarray:
+    def compute_antecedents_memberships(self, x: np.ndarray) -> np.ndarray:
         '''
         Returns a list of of dictionaries that contains the memberships for each x value to the ith antecedents, nth linguistic variable.
         x must be a vector (only one sample)
@@ -82,7 +82,7 @@ class RuleBaseRegT1(RuleBase):
         return np.array(cut_heights)
 
 
-    def inference(self, x: np.array) -> float:
+    def inference(self, X: np.ndarray) -> np.ndarray:
         '''
         Computes the output of the t1 inference system.
 
@@ -93,7 +93,7 @@ class RuleBaseRegT1(RuleBase):
         '''
         output = []
 
-        for sample in x:
+        for sample in X:
             antecedents_memberships = self.compute_antecedents_memberships(sample)
             cut_heights = self.compute_cut_heights(antecedents_memberships)
 
@@ -110,10 +110,10 @@ class RuleBaseRegT1(RuleBase):
             x_crisp = fs.centroid_defuzzification(p_x, p_y)
             output.append(x_crisp)
         
-        return np.array(output)
+        return np.array(output).reshape(-1, 1)
 
 
-    def forward(self, x: np.array) -> np.array:
+    def forward(self, X: np.ndarray) -> np.ndarray:
         '''
         Same as inference() in the t1 case.
 
@@ -122,7 +122,7 @@ class RuleBaseRegT1(RuleBase):
         :param x: array with the values of the inputs.
         :return: array with the deffuzified output for each sample.
         '''
-        return self.inference(x)
+        return self.inference(X)
 
 
     def fuzzy_type(self) -> fs.FUZZY_SETS:

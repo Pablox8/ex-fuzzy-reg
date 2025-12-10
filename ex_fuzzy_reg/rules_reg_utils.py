@@ -5,8 +5,8 @@ from ex_fuzzy_reg.fuzzy_sets import TriangularFS
 from ex_fuzzy_reg import fuzzy_variable as fv
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
 
-
-def generate_partitions(data: np.ndarray, n_labels: int=3, label_names: list[str]=None) -> list[fv.FuzzyVariable]:
+# TODO: generalize for any n_labels
+def generate_partitions(data: np.ndarray, n_labels: int=3, fv_label_names: list[str]=None) -> list[fv.FuzzyVariable]:
     partitions = []
     
     for i in range(data.shape[1]):
@@ -14,12 +14,12 @@ def generate_partitions(data: np.ndarray, n_labels: int=3, label_names: list[str
         label_max = np.max(data[:, i])
         label_mid = (label_max + label_min) / (n_labels - 1)
 
-        if label_names:
-            low = TriangularFS('low ' + label_names[i], [label_min, label_min, label_mid], [label_min, label_max])
-            medium = TriangularFS('medium ' + label_names[i], [label_min, label_mid, label_max], [label_min, label_max])
-            high = TriangularFS('high ' + label_names[i], [label_mid, label_max, label_max], [label_min, label_max])
+        if fv_label_names:
+            low = TriangularFS('low ' + fv_label_names[i], [label_min, label_min, label_mid], [label_min, label_max])
+            medium = TriangularFS('medium ' + fv_label_names[i], [label_min, label_mid, label_max], [label_min, label_max])
+            high = TriangularFS('high ' + fv_label_names[i], [label_mid, label_max, label_max], [label_min, label_max])
 
-            fv_label = fv.FuzzyVariable(label_names[i], [low, medium, high])
+            fv_label = fv.FuzzyVariable(fv_label_names[i], [low, medium, high])
 
         else:
             low = TriangularFS('low', [label_min, label_min, label_mid], [label_min, label_max])
@@ -33,9 +33,11 @@ def generate_partitions(data: np.ndarray, n_labels: int=3, label_names: list[str
     return partitions
 
 
-def generate_rules(data: np.ndarray) -> RuleBaseRegT1:
+# TODO: allow tolerance and / or n_rules (will return n_rules with greatest score)
+def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None) -> RuleBaseRegT1:
     m = data.shape[0]
-    partitions = generate_partitions(data)
+    if not partitions:
+        partitions = generate_partitions(data)
 
     rules = {} # antecendents (tuple): consequent (int), dof (float)
 

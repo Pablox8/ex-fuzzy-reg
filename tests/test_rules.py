@@ -68,7 +68,7 @@ def test_generate_rules():
     print('height | weight | skill')
     print(data, '\n')
     label_names = ['height', 'weight', 'skill']
-    partitions = utils.generate_partitions(data, label_names=label_names)
+    partitions = utils.generate_partitions(data, fv_label_names=label_names)
 
     for i in range(len(partitions)):
         print(partitions[i])
