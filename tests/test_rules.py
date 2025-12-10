@@ -23,12 +23,12 @@ def test_partition_creation() -> None:
     lv_height = partitions[0].linguistic_variables
     lv_weight = partitions[1].linguistic_variables
 
-    assert lv_height[0].membership_parameters == [0, 0, 1.6]
-    assert lv_height[1].membership_parameters == [0, 1.6, 2.2]
+    assert lv_height[0].membership_parameters == [1, 1, 1.6]
+    assert lv_height[1].membership_parameters == [1, 1.6, 2.2]
     assert lv_height[2].membership_parameters == [1.6, 2.2, 2.2]
 
-    assert lv_weight[0].membership_parameters == [0, 0, 95]
-    assert lv_weight[1].membership_parameters == [0, 95, 150]
+    assert lv_weight[0].membership_parameters == [40, 40, 95]
+    assert lv_weight[1].membership_parameters == [40, 95, 150]
     assert lv_weight[2].membership_parameters == [95, 150, 150]
 
 # TODO: complete tests below
