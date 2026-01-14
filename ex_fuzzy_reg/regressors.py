@@ -1,3 +1,4 @@
+import json
 import numpy as np
 from sklearn.base import RegressorMixin
 
@@ -24,3 +25,21 @@ class MamdamiFIS(RegressorMixin):
     def predict(self, X: np.ndarray) -> np.ndarray:
         y_pred = self.rule_base.inference(X)
         return y_pred
+
+
+    def export_to_json(self, path: str = "./model.json") -> None:
+        linguistic_vars_str = {}
+
+        for var in self.linguistic_variables:
+            linguistic_vars_str[var.name] = {}
+            for fs in var.linguistic_variables:
+                linguistic_vars_str[var.name][fs.name] = fs.membership_parameters
+
+        model_data = {
+            "model": __class__.__name__,
+            "linguistic_variables": linguistic_vars_str,
+            "rules": self.rule_base.get_rulebase_matrix().astype(int).tolist()
+        }
+
+        with open(path, mode="w", encoding="utf-8") as write_file:
+            json.dump(model_data, write_file, indent=4)

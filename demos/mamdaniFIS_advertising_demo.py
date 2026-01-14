@@ -50,6 +50,8 @@ def mamdaniFIS_advertising_demo() -> None:
     print(f"R² Score: {R2}")
     print(f"Root Mean Squared Error: {RMSE}")
 
+    mamdaniFIS.export_to_json()
+
 
 if __name__ == '__main__':
     mamdaniFIS_advertising_demo()
