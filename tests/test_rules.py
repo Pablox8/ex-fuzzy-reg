@@ -85,7 +85,8 @@ def test_generate_rules():
 
 def test_rulebase_tsk():
     '''
-    Implementation of Example 2 from 'Fuzzy Identification of Systems and Its Applications to Modeling and Control' article, 1985 
+    Implementation of Example 2 from Takagi and Sugeno 'Fuzzy Identification of Systems and Its Applications to Modeling and Control' 
+    article, 1985. 
     '''
     x1_small = fs.TriangularFS('x1 small', [0, 0, 16], [0, 20])
     x1_big = fs.TriangularFS('x1 big', [10, 20, 20], [0, 20])
