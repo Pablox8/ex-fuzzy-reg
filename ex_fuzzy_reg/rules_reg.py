@@ -17,7 +17,7 @@ class RuleBaseRegT1(RuleBase):
     This class supports t1 fs.
     '''
 
-    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable = None, tnorm=np.prod) -> None:
+    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable = None, tnorm = np.prod) -> None:
         '''
         Constructor of the RuleBaseT1 class.
 
@@ -32,7 +32,7 @@ class RuleBaseRegT1(RuleBase):
         self.tnorm = tnorm
 
 
-    def compute_antecedents_memberships(self, X: np.ndarray) -> np.ndarray:
+    def compute_antecedents_memberships(self, x: np.ndarray) -> np.ndarray:
         '''
         Returns a list of of dictionaries that contains the memberships for each x value to the ith antecedents, nth linguistic variable.
         x must be a vector (only one sample)
@@ -83,7 +83,7 @@ class RuleBaseRegT1(RuleBase):
         return np.array(cut_heights)
 
 
-    def inference(self, X: np.ndarray) -> np.ndarray:
+    def inference(self, x: np.ndarray) -> np.ndarray:
         '''
         Computes the output of the t1 inference system.
 
@@ -94,7 +94,7 @@ class RuleBaseRegT1(RuleBase):
         '''
         output = []
 
-        for sample in X:
+        for sample in x:
             antecedents_memberships = self.compute_antecedents_memberships(sample)
             cut_heights = self.compute_cut_heights(antecedents_memberships)
 
@@ -114,7 +114,7 @@ class RuleBaseRegT1(RuleBase):
         return np.array(output).reshape(-1, 1)
 
 
-    def forward(self, X: np.ndarray) -> np.ndarray:
+    def forward(self, x: np.ndarray) -> np.ndarray:
         '''
         Same as inference() in the t1 case.
 
@@ -123,7 +123,7 @@ class RuleBaseRegT1(RuleBase):
         :param x: array with the values of the inputs.
         :return: array with the deffuzified output for each sample.
         '''
-        return self.inference(X)
+        return self.inference(x)
 
 
     def fuzzy_type(self) -> fs.FUZZY_SETS:
@@ -145,7 +145,7 @@ class ConsequentTSK:
         return 0 if len(self.params) == 1 else 1
 
 
-    def compute_consequent(self, X: np.ndarray):
+    def compute_consequent(self, x: np.ndarray) -> np.ndarray:
         if self.order == 0:
             return self.params[0]
 
@@ -158,5 +158,56 @@ class RuleSimpleTSK:
         self.consequent = consequent 
 
     
-    def inference(self, X: np.ndarray) -> np.ndarray:
-        return self.consequent.compute_consequent(X)
+    def inference(self, x: np.ndarray) -> np.ndarray:
+        return self.consequent.compute_consequent(x)
+
+
+class RuleBaseRegTSK:
+    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimpleTSK], consequent: fv.FuzzyVariable = None, tnorm = np.prod) -> None:
+        self.rules = rules
+        self.antecedents = antecedents
+        self.consequent = consequent
+        self.tnorm = tnorm
+
+
+    def compute_antecedents_memberships(self, x: np.ndarray) -> np.ndarray:
+        '''
+        Returns a list of of dictionaries that contains the memberships for each x value to the ith antecedents, nth linguistic variable.
+        x must be a vector (only one sample)
+
+        :param x: vector with the values of the inputs.
+        :return: a list with the antecedent truth values for each one. Each list is comprised of a list with n elements, where n is the number of linguistic variables in each variable.
+        '''
+        if len(self.rules) > 0:
+            cache_antecedent_memberships = []
+
+            for ix, antecedent in enumerate(self.antecedents):
+                # Check if x is pandas 
+                if hasattr(x, 'values'):
+                    x = x.values
+
+                cache_antecedent_memberships.append(antecedent.compute_memberships(x[ix]))
+
+            return np.array(cache_antecedent_memberships)
+
+
+    def compute_rules_consequents(self, x: np.ndarray) -> np.ndarray:
+        consequents = []
+
+        for rule in self.rules: 
+            consequents.append(rule.inference(x)) 
+
+        return np.array(consequents)
+
+
+    def inference(self, x: np.ndarray) -> np.ndarray:
+        output = []
+
+        for sample in x:
+            rules_consequents = self.compute_rules_consequents(sample)
+            antecedents_memberships = self.compute_antecedents_memberships(sample)
+
+            x_agg = np.dot(rules_consequents, antecedents_memberships) / np.sum(antecedents_memberships)
+            output.append(x_agg)
+
+        return output
