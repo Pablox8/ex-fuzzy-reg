@@ -132,3 +132,18 @@ class RuleBaseRegT1(RuleBase):
         :return: the corresponding fuzzy set type of the RuleBase.
         '''
         return fs.FUZZY_SETS.t1
+
+
+class ConsequentTSK:
+    def __init__(self, params: np.ndarray) -> None:
+       self.params = params
+
+
+    def compute_consequent(self, x: np.ndarray):
+        if len(self.params) == 1:
+            return self.params[0]
+
+        return np.dot(x, params) 
+
+
+    
