@@ -141,7 +141,7 @@ class ConsequentTSK:
 
 
     @property
-    def order():
+    def order(self):
         return 0 if len(self.params) == 1 else 1
 
 
@@ -149,7 +149,7 @@ class ConsequentTSK:
         if self.order == 0:
             return self.params[0]
 
-        return np.dot(x, params) 
+        return np.dot(x, self.params) 
 
 
 class RuleSimpleTSK:
@@ -163,14 +163,13 @@ class RuleSimpleTSK:
 
 
 class RuleBaseRegTSK:
-    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimpleTSK], consequent: fv.FuzzyVariable = None, tnorm = np.prod) -> None:
+    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimpleTSK], tnorm = np.min) -> None:
         self.rules = rules
         self.antecedents = antecedents
-        self.consequent = consequent
         self.tnorm = tnorm
 
 
-    def compute_antecedents_memberships(self, x: np.ndarray) -> np.ndarray:
+    def compute_rules_truth_values(self, x: np.ndarray) -> np.ndarray:
         '''
         Returns a list of of dictionaries that contains the memberships for each x value to the ith antecedents, nth linguistic variable.
         x must be a vector (only one sample)
@@ -178,17 +177,18 @@ class RuleBaseRegTSK:
         :param x: vector with the values of the inputs.
         :return: a list with the antecedent truth values for each one. Each list is comprised of a list with n elements, where n is the number of linguistic variables in each variable.
         '''
-        if len(self.rules) > 0:
-            cache_antecedent_memberships = []
+        truth_values = []
 
-            for ix, antecedent in enumerate(self.antecedents):
-                # Check if x is pandas 
-                if hasattr(x, 'values'):
-                    x = x.values
+        for rule in self.rules:
+            rule_antecedent_memberships = []
 
-                cache_antecedent_memberships.append(antecedent.compute_memberships(x[ix]))
+            for idx, ling_var_idx in enumerate(rule.antecedents):
+                if ling_var_idx != -1:
+                    rule_antecedent_memberships.append(self.antecedents[idx].linguistic_variables[ling_var_idx].membership(x[idx])) 
 
-            return np.array(cache_antecedent_memberships)
+            truth_values.append(self.tnorm(rule_antecedent_memberships))
+
+        return np.array(truth_values)
 
 
     def compute_rules_consequents(self, x: np.ndarray) -> np.ndarray:
@@ -205,9 +205,9 @@ class RuleBaseRegTSK:
 
         for sample in x:
             rules_consequents = self.compute_rules_consequents(sample)
-            antecedents_memberships = self.compute_antecedents_memberships(sample)
+            rules_truth_values = self.compute_rules_truth_values(sample)
 
-            x_agg = np.dot(rules_consequents, antecedents_memberships) / np.sum(antecedents_memberships)
+            x_agg = np.dot(rules_consequents, rules_truth_values) / np.sum(rules_truth_values)
             output.append(x_agg)
 
         return output

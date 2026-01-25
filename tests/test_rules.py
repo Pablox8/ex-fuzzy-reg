@@ -7,6 +7,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from ex_fuzzy_reg import rules_reg_utils as utils
+from ex_fuzzy_reg import fuzzy_sets as fs
+from ex_fuzzy_reg import fuzzy_variable as fv
+from ex_fuzzy_reg import rules_reg as rules
 from ex_fuzzy.utils import construct_partitions, _triangular_construct_partitions
 
 def test_partition_creation() -> None:
@@ -79,6 +82,36 @@ def test_generate_rules():
     RB.print_rules()
     print(RB.get_rulebase_matrix())
 
+
+def test_rulebase_tsk():
+    '''
+    Implementation of Example 2 from 'Fuzzy Identification of Systems and Its Applications to Modeling and Control' article, 1985 
+    '''
+    x1_small = fs.TriangularFS('x1 small', [0, 0, 16], [0, 20])
+    x1_big = fs.TriangularFS('x1 big', [10, 20, 20], [0, 20])
+    
+    x2_small = fs.TriangularFS('x2 small', [0, 0, 8], [0, 10])
+    x2_big = fs.TriangularFS('x2 big', [2, 10, 10], [0, 10])
+
+    X1 = fv.FuzzyVariable('x1', [x1_small, x1_big])
+    X2 = fv.FuzzyVariable('x2', [x2_small, x2_big])
+
+    R1_consq = rules.ConsequentTSK([1, 1])
+    R2_consq = rules.ConsequentTSK([2, 0])
+    R3_consq = rules.ConsequentTSK([0, 3])
+
+    R1 = rules.RuleSimpleTSK([0, 0], R1_consq)
+    R2 = rules.RuleSimpleTSK([1, -1], R2_consq)
+    R3 = rules.RuleSimpleTSK([-1, 1], R3_consq)
+
+    RB = rules.RuleBaseRegTSK([X1, X2], [R1, R2, R3])
+
+    x = np.array([[12, 5]])
+
+    print(round(RB.inference(x)[0], 1))
+
+
 if __name__ == '__main__':
     #test_partition_creation_with_exfuzzy()
-    test_generate_rules()
+    #test_generate_rules()
+    test_rulebase_tsk()
