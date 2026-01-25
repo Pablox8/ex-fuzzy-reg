@@ -1,3 +1,4 @@
+from tkinter import W
 import numpy as np
 from ex_fuzzy.rules import RuleSimple, RuleBase
 
@@ -31,7 +32,7 @@ class RuleBaseRegT1(RuleBase):
         self.tnorm = tnorm
 
 
-    def compute_antecedents_memberships(self, x: np.ndarray) -> np.ndarray:
+    def compute_antecedents_memberships(self, X: np.ndarray) -> np.ndarray:
         '''
         Returns a list of of dictionaries that contains the memberships for each x value to the ith antecedents, nth linguistic variable.
         x must be a vector (only one sample)
@@ -139,11 +140,23 @@ class ConsequentTSK:
        self.params = params
 
 
-    def compute_consequent(self, x: np.ndarray):
-        if len(self.params) == 1:
+    @property
+    def order():
+        return 0 if len(self.params) == 1 else 1
+
+
+    def compute_consequent(self, X: np.ndarray):
+        if self.order == 0:
             return self.params[0]
 
         return np.dot(x, params) 
 
 
+class RuleSimpleTSK:
+    def __init__(self, antecedents: list[int], consequent: ConsequentTSK) -> None:
+        self.antecedents = antecedents
+        self.consequent = consequent 
+
     
+    def inference(self, X: np.ndarray) -> np.ndarray:
+        return self.consequent.compute_consequent(X)
