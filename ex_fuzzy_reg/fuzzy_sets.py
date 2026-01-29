@@ -222,40 +222,6 @@ class TriangularFS(FS):
         super().__init__(name, membership_parameters, domain)
         self.height = height
 
-
-    """ def membership(self, x: np.array, epsilon=10E-5) -> np.array:
-        a, b, c = self.membership_parameters
-        h = self.height
-
-        if b == a:
-            b += epsilon
-        if b == c:
-            c += epsilon
-
-        aux1 = h*(x - a) / (b - a)
-        aux2 = -h*(x - c) / (c - b)
-        
-        if _is_torch_tensor(x):
-            torch = _get_torch()
-            val = torch.min(aux1, aux2)
-            return torch.clamp(val, 0.0, h)
-
-        if isinstance(x, np.ndarray):
-            val = np.minimum(aux1, aux2)
-            return np.clip(val, 0.0, h)
-
-        elif isinstance(x, list):
-            return [np.clip(min(a1, a2), 0.0, h) 
-                    for a1, a2 in zip(aux1, aux2)]
-
-        elif isinstance(x, pd.Series):
-            val = np.minimum(aux1, aux2)
-            return np.clip(val, 0.0, h)
-
-        else:  # valor escalar
-            val = min(aux1, aux2)
-            return np.clip(val, 0.0, h) """
-
     
     def membership(self, x: np.ndarray) -> np.ndarray:
         a, b, c = self.membership_parameters
@@ -303,7 +269,7 @@ class GaussianFS(FS):
 
     def membership(self, x: np.array) -> np.array:
         mean, standard_deviation = self.membership_parameters
-        return np.exp(- ((x - mean) / standard_deviation) ** 2)
+        return np.exp(-(x - mean)**2 / (2*standard_deviation**2))
 
     
     def type(self) -> FUZZY_SETS:
