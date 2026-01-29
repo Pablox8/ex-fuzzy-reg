@@ -133,7 +133,7 @@ def test_compute_intersection_x_vertical_segment():
     assert x is None
 
 
-def test_trapezoidal_union_function():
+def test_trapezoidal_union_general():
     fs1 = fs.TrapezoidalFS("T1", [0, 2, 3, 4], [0, 6], 0.7)
     fs2 = fs.TrapezoidalFS("T2", [2, 3, 4, 6], [0, 6])
 
@@ -142,6 +142,8 @@ def test_trapezoidal_union_function():
     assert u_x == pytest.approx([0, 2, 2.7, 3, 4, 6])
     assert u_y == pytest.approx([0, 0.7, 0.7, 1, 1, 0])
 
+
+def test_trapezoidal_union_with_empty_set():
     fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     empty = fs.TrapezoidalFS("empty", [1, 2, 3, 4], [0, 5], 0)
 
@@ -150,6 +152,9 @@ def test_trapezoidal_union_function():
     assert u_x == pytest.approx([1, 2, 3, 4])
     assert u_y == pytest.approx([0, 0.7, 0.7, 0])
 
+
+def test_trapezoidal_union_with_max_height():
+    fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     all_max_h = fs.TrapezoidalFS("all max h", [1, 2, 3, 4], [0, 5], 1)
     
     u_x, u_y = fs.union([fs_test, all_max_h])
