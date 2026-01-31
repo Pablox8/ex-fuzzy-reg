@@ -33,8 +33,13 @@ def generate_partitions(data: np.ndarray, n_labels: int=3, fv_label_names: list[
     return partitions
 
 
-# TODO: allow tolerance and / or n_rules (will return n_rules with greatest score)
-def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None) -> RuleBaseRegT1:
+def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, tolerance: float=None, n_rules: int=None) -> RuleBaseRegT1:
+    if tolerance and (tolerance < 0 or tolerance > 1):
+        tolerance = None
+    
+    if n_rules and n_rules < 0:
+        n_rules = None
+
     m = data.shape[0]
     if not partitions:
         partitions = generate_partitions(data)
@@ -47,6 +52,9 @@ def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None) ->
 
         dof = np.prod(memberships.max(axis=1)) # degree of fulfillment
 
+        if tolerance and dof < tolerance:
+            continue
+
         antecedents = tuple(labels[:-1])
         consequent = labels[-1]
 
@@ -57,9 +65,19 @@ def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None) ->
 
             if last_DOF < dof: 
                 rules[antecedents] = (consequent, dof)
-
+    
     rules_list = []
+    dofs = []
+    
     for antecedents, (consequent, dof) in rules.items():
         rules_list.append(RuleSimple(list(antecedents), consequent))
+        dofs.append(dof)
+    
+    if not n_rules:
+        return RuleBaseRegT1(partitions[:-1], rules_list, partitions[-1])
+     
+    dofs = np.array(dofs)
+    rules_list = np.array(rules_list, dtype=RuleSimple) 
+    valid_rules = np.argsort(dofs)[::-1][:n_rules]
 
-    return RuleBaseRegT1(partitions[:-1], rules_list, partitions[-1])
+    return RuleBaseRegT1(partitions[:-1], rules_list[valid_rules], partitions[-1])
