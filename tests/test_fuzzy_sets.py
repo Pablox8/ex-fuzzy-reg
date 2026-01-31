@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from ex_fuzzy_reg import fuzzy_sets as fs
 
 
-def test_trapezoidal_membership_function():
+def test_trapezoidal_membership_evaluates_key_points_correctly():
     """Test the trapezoidal membership function."""
     # Trapezoidal: [a, b, c, d] where b, c is the plateau
     fs_test = fs.TrapezoidalFS("trial", [0.2, 0.4, 0.6, 0.8], [0, 1])
@@ -25,7 +25,7 @@ def test_trapezoidal_membership_function():
     assert result[6] == 0.0  # After end
 
 
-def test_triangular_membership_function():
+def test_triangular_membership_evaluates_base_and_peak_correctly():
     """Test triangular membership function."""
     # Triangular: [a, b, c] where b is the peak
     fs_test = fs.TriangularFS("trial", [0.2, 0.5, 0.8], [0, 1])
@@ -38,7 +38,7 @@ def test_triangular_membership_function():
     assert result[4] == 0.0  # At right base
 
 
-def test_gaussian_membership_function():
+def test_gaussian_membership_is_symmetric_and_peaks_at_mean():
     """Test gaussian membership function."""
     # Gaussian: [mean, std]
     fs_test = fs.GaussianFS("trial", [0.0, 1.0], 50)
@@ -52,7 +52,7 @@ def test_gaussian_membership_function():
     assert result[4] < result[3]
 
 
-def test_cut_function_general():
+def test_cut_trapezoidal_fs_scales_support_and_sets_height():
     """Test general cut operation on trapezoidal membership function."""
     fs_base = fs.TrapezoidalFS("trial", [1, 2, 3, 4], [0, 5])
 
@@ -61,7 +61,7 @@ def test_cut_function_general():
     assert fs_cut.height == 0.5
 
 
-def test_cut_function_h_zero():
+def test_cut_trapezoidal_fs_with_zero_height_returns_empty_set():
     """Test cut function on trapezoidal membership function with h=0."""
     fs_base = fs.TrapezoidalFS("trial", [1, 2, 3, 4], [0, 5])
 
@@ -70,7 +70,7 @@ def test_cut_function_h_zero():
     assert fs_cut.height == 0.0
 
 
-def test_cut_function_h_one():
+def test_cut_trapezoidal_fs_with_full_height_returns_original_set():
     """Test cut function on trapezoidal membership function with h=1."""
     fs_base = fs.TrapezoidalFS("trial", [1, 2, 3, 4], [0, 5])
 
@@ -79,7 +79,7 @@ def test_cut_function_h_one():
     assert fs_cut.height == 1.0
 
 
-def test_segments_may_intersect_overlap():
+def test_segments_may_intersect_when_overlapping_in_x():
     """Segments overlap in x."""
     s1 = [(0, 0), (3, 1)]
     s2 = [(2, 1), (4, 0)]
@@ -87,7 +87,7 @@ def test_segments_may_intersect_overlap():
     assert fs.segments_may_intersect(s1, s2) is True
 
 
-def test_segments_may_intersect_touching():
+def test_segments_may_intersect_when_touching_at_endpoint():
     """Segments touch at boundary."""
     s1 = [(0, 0), (2, 1)]
     s2 = [(2, 1), (4, 0)]
@@ -95,7 +95,7 @@ def test_segments_may_intersect_touching():
     assert fs.segments_may_intersect(s1, s2) is True
 
 
-def test_segments_may_intersect_without_overlap():
+def test_segments_may_intersect_returns_false_when_disjoint():
     """Segments do not overlap."""
     s1 = [(0, 0), (1, 1)]
     s2 = [(2, 1), (3, 0)]
@@ -103,7 +103,7 @@ def test_segments_may_intersect_without_overlap():
     assert fs.segments_may_intersect(s1, s2) is False
 
 
-def test_compute_intersection_x_general():
+def test_compute_intersection_x_returns_correct_value_for_crossing_lines():
     """Intersect two segments."""
     s1 = [(0, 0), (2, 2)]      # y = x
     s2 = [(0, 2), (2, 0)]      # y = -x + 2
@@ -113,7 +113,7 @@ def test_compute_intersection_x_general():
     assert x == pytest.approx(1.0)
 
 
-def test_compute_intersection_x_parallel_lines():
+def test_compute_intersection_x_returns_none_for_parallel_lines():
     """Parallel segments should not intersect."""
     s1 = [(0, 0), (2, 2)]
     s2 = [(0, 1), (2, 3)]
@@ -123,7 +123,7 @@ def test_compute_intersection_x_parallel_lines():
     assert x is None
 
 
-def test_compute_intersection_x_vertical_segment():
+def test_compute_intersection_x_returns_none_when_segment_is_vertical():
     """Vertical segments return None."""
     s1 = [(1, 0), (1, 2)]
     s2 = [(0, 1), (2, 1)]
@@ -133,7 +133,7 @@ def test_compute_intersection_x_vertical_segment():
     assert x is None
 
 
-def test_trapezoidal_union_general():
+def test_trapezoidal_union_combines_overlapping_sets_correctly():
     fs1 = fs.TrapezoidalFS("T1", [0, 2, 3, 4], [0, 6], 0.7)
     fs2 = fs.TrapezoidalFS("T2", [2, 3, 4, 6], [0, 6])
 
@@ -143,7 +143,7 @@ def test_trapezoidal_union_general():
     assert u_y == pytest.approx([0, 0.7, 0.7, 1, 1, 0])
 
 
-def test_trapezoidal_union_with_empty_set():
+def test_trapezoidal_union_ignores_empty_set():
     fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     empty = fs.TrapezoidalFS("empty", [1, 2, 3, 4], [0, 5], 0)
 
@@ -153,7 +153,7 @@ def test_trapezoidal_union_with_empty_set():
     assert u_y == pytest.approx([0, 0.7, 0.7, 0])
 
 
-def test_trapezoidal_union_with_max_height():
+def test_trapezoidal_union_takes_maximum_height_when_overlapping():
     fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     all_max_h = fs.TrapezoidalFS("all max h", [1, 2, 3, 4], [0, 5], 1)
     
@@ -163,7 +163,7 @@ def test_trapezoidal_union_with_max_height():
     assert u_y == pytest.approx([0, 1, 1, 0])
 
 
-def test_centroid_defuzzification_fixed_example():
+def test_centroid_defuzzification_matches_reference_example():
     p_x1 = np.array([0, 2, 2.7, 3, 4, 6])
     p_y1 = np.array([0, 0.7, 0.7, 1, 1, 0])
 
@@ -172,31 +172,31 @@ def test_centroid_defuzzification_fixed_example():
     assert round(x_crisp_cont1, 3) == 3.187
 
 
-def test_centroid_defuzzification_simple_triangle():
+def test_centroid_defuzzification_of_symmetric_triangle_is_center():
     """Simple triangular fuzzy set."""
     p_x = [0, 1, 2]
     p_y = [0, 1, 0]
 
     x_crisp = fs.centroid_defuzzification(p_x, p_y)
 
-    # Centroid of a triangle at (0,0)-(1,1)-(2,0) is 1
     assert x_crisp == pytest.approx(1.0)
 
 
-def test_centroid_defuzzification_invalid_input():
+def test_centroid_defuzzification_returns_minus_inf_for_none_inputs():
     """Returns -inf if inputs are None."""
     assert fs.centroid_defuzzification(None, [0, 1]) == -np.inf
     assert fs.centroid_defuzzification([0, 1], None) == -np.inf
 
 
-def test_centroid_defuzzification_length_mismatch():
+def test_centroid_defuzzification_returns_minus_inf_for_length_mismatch():
     """Returns -inf if inputs have different lengths."""
     p_x = [0, 1, 2]
     p_y = [0, 1]
+
     assert fs.centroid_defuzzification(p_x, p_y) == -np.inf
 
 
-def test_centroid_defuzzification_constant_segment():
+def test_centroid_defuzzification_of_constant_segment_is_midpoint():
     """Flat segment."""
     p_x = [0, 1]
     p_y = [2, 2]
@@ -207,7 +207,7 @@ def test_centroid_defuzzification_constant_segment():
     assert x_crisp == pytest.approx(0.5)
 
 
-def test_centroid_defuzzification_zero_area():
+def test_centroid_defuzzification_returns_zero_for_zero_area_set():
     """Flat line at zero (should handle division by zero)."""
     p_x = [0, 1]
     p_y = [0, 0]
