@@ -43,7 +43,7 @@ def generate_triangular_partitions(data: np.ndarray, n_labels: int=3, fs_label_n
     
     return partitions
 
-
+# TODO: Add tests for generate_rules 
 def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, tolerance: float=None, n_rules: int=None) -> RuleBaseRegT1:
     if tolerance and (tolerance < 0 or tolerance > 1):
         tolerance = None
