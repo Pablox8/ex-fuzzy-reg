@@ -5,31 +5,42 @@ from ex_fuzzy_reg.fuzzy_sets import TriangularFS
 from ex_fuzzy_reg import fuzzy_variable as fv
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
 
-# TODO: generalize for any n_labels
-def generate_partitions(data: np.ndarray, n_labels: int=3, fv_label_names: list[str]=None) -> list[fv.FuzzyVariable]:
-    partitions = []
+
+def generate_triangular_partitions(data: np.ndarray, n_labels: int=3, fs_label_names: list[str]=None, fv_label_names: list[str]=None) -> list[fv.FuzzyVariable]:
+    if n_labels < 3:
+        raise ValueError("n_labels must be greater or equal to 3.")
     
+    if fs_label_names and len(fs_label_names) != n_labels:
+        raise ValueError("fs_label_names length must match n_labels")
+
+    if fv_label_names and len(fv_label_names) != data.shape[1]:
+        raise ValueError("fv_label_names length must match number of features")
+   
+    partitions = []
+
     for i in range(data.shape[1]):
         label_min = np.min(data[:, i])
         label_max = np.max(data[:, i])
-        label_mid = (label_max + label_min) / (n_labels - 1)
+    
+        centers = np.linspace(label_min, label_max, n_labels)
 
-        if fv_label_names:
-            low = TriangularFS('low ' + fv_label_names[i], [label_min, label_min, label_mid], [label_min, label_max])
-            medium = TriangularFS('medium ' + fv_label_names[i], [label_min, label_mid, label_max], [label_min, label_max])
-            high = TriangularFS('high ' + fv_label_names[i], [label_mid, label_max, label_max], [label_min, label_max])
+        fs_list = []
 
-            fv_label = fv.FuzzyVariable(fv_label_names[i], [low, medium, high])
+        for j in range(n_labels):
+            if j == 0:
+                params = [centers[j], centers[j], centers[j+1]]
+            elif j == n_labels - 1:
+                params = [centers[j-1], centers[j], centers[j]]
+            else:
+                params = [centers[j-1], centers[j], centers[j+1]]
+            
+            fs_name = fs_label_names[j] if fs_label_names else f"Value {j}"
 
-        else:
-            low = TriangularFS('low', [label_min, label_min, label_mid], [label_min, label_max])
-            medium = TriangularFS('medium', [label_min, label_mid, label_max], [label_min, label_max])
-            high = TriangularFS('high', [label_mid, label_max, label_max], [label_min, label_max])
-
-            fv_label = fv.FuzzyVariable(f'Label {i}', [low, medium, high])
-
-        partitions.append(fv_label)
-
+            fs_list.append(TriangularFS(fs_name, params, [label_min, label_max])) 
+        
+        fv_label = fv_label_names[i] if fv_label_names else f"Label {i}"
+        partitions.append(fv.FuzzyVariable(fv_label, fs_list))
+    
     return partitions
 
 
