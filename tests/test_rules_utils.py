@@ -142,7 +142,18 @@ def test_invalid_n_rules_is_ignored():
 
 
 def test_partitions_are_computed_when_not_passed():
-    pass
+    data = np.array([
+        [2.0, 3.0, 4.0],
+        [8.0, 7.0, 9.0],
+    ])
+
+    rule_base = utils.generate_rules(data)
+
+    assert rule_base.antecedents is not None
+    assert rule_base.consequent is not None
+
+    assert len(rule_base.antecedents) == data.shape[1] - 1
+    assert isinstance(rule_base.consequent, fv.FuzzyVariable)
 
 
 def test_computed_and_passed_partitions_produce_same_result():
@@ -164,12 +175,69 @@ def test_computed_and_passed_partitions_produce_same_result():
 
 
 def test_rules_with_dof_below_tolerance_are_discarded():
-    pass
+    data = np.array([
+        [2.0, 3.0, 4.0],
+        [2.1, 3.1, 4.1],
+        [8.0, 7.5, 9.0],
+    ])
+
+    low = fs.TrapezoidalFS('low', [0, 0, 2, 4], [0, 10])
+    mid = fs.TriangularFS('mid', [3, 5, 7], [0, 10])
+    high = fs.TrapezoidalFS('high', [6, 8, 10, 10], [0, 10])
+
+    partitions = [
+        fv.FuzzyVariable('x1', [low, mid, high], 'u'),
+        fv.FuzzyVariable('x2', [low, mid, high], 'u'),
+        fv.FuzzyVariable('y',  [low, mid, high], 'u'),
+    ]
+
+    rb_no_tol = utils.generate_rules(data, partitions=partitions)
+    rb_high_tol = utils.generate_rules(data, partitions=partitions, tolerance=0.95)
+
+    assert len(rb_high_tol.rules) <= len(rb_no_tol.rules)
 
 
 def test_rule_with_higher_dof_is_kept_when_having_same_antecedents():
-    pass
+    data = np.array([
+        [2.0, 2.0, 4.0],
+        [2.1, 2.1, 8.0],
+    ])
+
+    low = fs.TrapezoidalFS('low', [0, 0, 2, 4], [0, 10])
+    mid = fs.TriangularFS('mid', [3, 5, 7], [0, 10])
+    high = fs.TrapezoidalFS('high', [6, 8, 10, 10], [0, 10])
+
+    partitions = [
+        fv.FuzzyVariable('x1', [low, mid, high], 'u'),
+        fv.FuzzyVariable('x2', [low, mid, high], 'u'),
+        fv.FuzzyVariable('y',  [low, mid, high], 'u'),
+    ]
+
+    rb = utils.generate_rules(data, partitions=partitions)
+
+    assert len(rb.rules) == 1
 
 
 def test_best_n_rules_are_kept_when_n_rules_is_passed():
-    pass
+    data = np.array([
+        [2.0, 3.0, 4.0],
+        [2.1, 3.1, 4.1],
+        [8.0, 7.5, 9.0],
+        [8.2, 7.7, 9.1],
+    ])
+
+    low = fs.TrapezoidalFS('low', [0, 0, 2, 4], [0, 10])
+    mid = fs.TriangularFS('mid', [3, 5, 7], [0, 10])
+    high = fs.TrapezoidalFS('high', [6, 8, 10, 10], [0, 10])
+
+    partitions = [
+        fv.FuzzyVariable('x1', [low, mid, high], 'u'),
+        fv.FuzzyVariable('x2', [low, mid, high], 'u'),
+        fv.FuzzyVariable('y',  [low, mid, high], 'u'),
+    ]
+
+    rb_all = utils.generate_rules(data, partitions=partitions)
+    rb_top_1 = utils.generate_rules(data, partitions=partitions, n_rules=1)
+
+    assert len(rb_top_1.rules) == 1
+    assert len(rb_top_1.rules) <= len(rb_all.rules)
