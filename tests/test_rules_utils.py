@@ -98,7 +98,25 @@ def test_generate_triangular_partitions_computes_correct_membership_parameters()
 
 
 def test_invalid_tolerance_is_ignored():
-    pass
+    data = np.array([
+        [2.0, 3.0, 4.0],
+        [8.0, 7.0, 9.0],
+    ])
+
+    low = fs.TrapezoidalFS('low', [0, 0, 2, 4], [0, 10])
+    mid = fs.TriangularFS('mid', [3, 5, 7], [0, 10])
+    high = fs.TrapezoidalFS('high', [6, 8, 10, 10], [0, 10])
+
+    partitions = [
+        fv.FuzzyVariable('x1', [low, mid, high], 'u'),
+        fv.FuzzyVariable('x2', [low, mid, high], 'u'),
+        fv.FuzzyVariable('y',  [low, mid, high], 'u'),
+    ]
+
+    rb_valid = utils.generate_rules(data, partitions=partitions)
+    rb_invalid = utils.generate_rules(data, partitions=partitions, tolerance=-0.5)
+
+    assert len(rb_valid.rules) == len(rb_invalid.rules)
 
 
 def test_invalid_n_rules_is_ignored():
