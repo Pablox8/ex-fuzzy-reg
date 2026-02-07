@@ -95,3 +95,31 @@ def test_generate_triangular_partitions_computes_correct_membership_parameters()
     assert partitions[1].linguistic_variables[0].membership_parameters == [40, 40, 95]
     assert partitions[1].linguistic_variables[1].membership_parameters == [40, 95, 150]
     assert partitions[1].linguistic_variables[2].membership_parameters == [95, 150, 150]
+
+
+def test_invalid_tolerance_is_ignored():
+    pass
+
+
+def test_invalid_n_rules_is_ignored():
+    pass
+
+
+def test_partitions_are_computed_when_not_passed():
+    pass
+
+
+def test_computed_and_passed_partitions_produce_same_result():
+    pass
+
+
+def test_rules_with_dof_below_tolerance_are_discarded():
+    pass
+
+
+def test_rule_with_higher_dof_is_kept_when_having_same_antecedents():
+    pass
+
+
+def test_best_n_rules_are_kept_when_n_rules_is_passed():
+    pass
