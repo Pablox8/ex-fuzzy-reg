@@ -53,7 +53,7 @@ def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, to
 
     m = data.shape[0]
     if not partitions:
-        partitions = generate_partitions(data)
+        partitions = generate_triangular_partitions(data)
 
     rules = {} # antecendents (tuple): consequent (int), dof (float)
 

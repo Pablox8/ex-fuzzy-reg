@@ -146,7 +146,21 @@ def test_partitions_are_computed_when_not_passed():
 
 
 def test_computed_and_passed_partitions_produce_same_result():
-    pass
+    data = np.array([
+        [2.0, 3.0, 4.0],
+        [8.0, 7.0, 9.0],
+    ])
+
+    rb_computed = utils.generate_rules(data)
+
+    partitions = utils.generate_triangular_partitions(data)
+    rb_passed = utils.generate_rules(data, partitions=partitions)
+
+    assert len(rb_computed.rules) == len(rb_passed.rules)
+
+    for r1, r2 in zip(rb_computed.rules, rb_passed.rules):
+        assert r1.antecedents == r2.antecedents
+        assert r1.consequent == r2.consequent
 
 
 def test_rules_with_dof_below_tolerance_are_discarded():
