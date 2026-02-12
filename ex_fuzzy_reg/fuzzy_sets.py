@@ -578,8 +578,20 @@ def segments_may_intersect(s1, s2) -> bool:
     return (max(s1[0][0], s1[1][0]) >= min(s2[0][0], s2[1][0]) and  
             max(s2[0][0], s2[1][0]) >= min(s1[0][0], s1[1][0]))
 
+# TODO: complete documentation
+# TODO: fix lack of coherence in edge cases
+def union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Given a list of trapezoids, computes and returns the points (x, y) representing the union of said trapezoids.
 
-def union(trapezoids: list[FS]) -> tuple[np.ndarray, np.ndarray]:
+    Args:
+        trapezoids (list[TrapezoidalFS]): trapezoids to compute the union.
+    
+    Returns:
+        tuple[np.ndarray, np.ndarray]: x and y component of the calculated union points. Both have the same shape.
+            - x (np.ndarray): Sorted x-coordinates covering all trapezoids and their intersections.
+            - y (np.ndarray): Corresponding y-values representing the maximum membership at each x.
+    """
     if not trapezoids:
         return [], []
 
@@ -626,6 +638,7 @@ def union(trapezoids: list[FS]) -> tuple[np.ndarray, np.ndarray]:
     return p_x, p_y
 
 
+# TODO: add documentation
 def centroid_defuzzification(p_x, p_y) -> float:
     if p_x is None or p_y is None:
         return -np.inf
