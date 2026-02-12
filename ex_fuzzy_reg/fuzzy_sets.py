@@ -1,7 +1,18 @@
+"""
+Fuzzy Sets Library
+
+Provides base and concrete implementations of Type-1 fuzzy sets:
+- Trapezoidal
+- Triangular
+- Gaussian
+
+Supports NumPy arrays and optionally PyTorch tensors.
+"""
 import enum
 import abc
 
 import numpy as np
+from numpy.typing import ArrayLike
 import pandas as pd
 
 
@@ -12,6 +23,7 @@ def _get_torch():
         return torch
     except ImportError:
         return None
+
 
 def _is_torch_tensor(x):
     """Check if x is a torch tensor without importing torch unless necessary."""
@@ -55,45 +67,27 @@ class FUZZY_SETS(enum.Enum):
 
 class FS():
     """
-    Base class for Type-1 fuzzy sets (Zadeh fuzzy sets).
+    Base class for fuzzy set implementation.
     
-    This class implements the fundamental Type-1 fuzzy set with crisp membership functions.
-    It serves as the base class for more specialized fuzzy set types like triangular,
+    It serves as the base class for more specialized fuzzy set types like trapezoidal, triangular,
     gaussian, and categorical fuzzy sets.
     
     Attributes:
         name (str): The linguistic name of the fuzzy set (e.g., "low", "medium", "high")
-        membership_parameters (list[float]): Parameters defining the membership function
+        membership_parameters (list[float]): Parameters defining the membership function.
+            The interpretation depends on the subclass (e.g., trapezoidal uses [a, b, c, d])
         domain (list[float]): Two-element list defining the universe of discourse [min, max]
-        
-    Example:
-        >>> fs = FS("medium", [1, 2, 3, 4], [0, 5])  # Trapezoidal fuzzy set
-        >>> membership = fs.membership(2.5)
-        >>> print(membership)  # Should be 1.0 (fully in the set)
-        
-    Note:
-        This class uses trapezoidal membership functions by default. For other shapes,
-        use specialized subclasses like gaussianFS or triangularFS.
     """
 
     def __init__(self, name: str, membership_parameters: list[float], domain: list[float]=None) -> None:
         """
-        Initialize a Type-1 fuzzy set.
+        Initialize a fuzzy set.
 
         Args:
             name (str): Linguistic name for the fuzzy set
-            membership_parameters (list[float]): Four parameters [a, b, c, d] defining 
-                the trapezoidal membership function where:
-                - a: left foot (membership starts rising from 0)
-                - b: left shoulder (membership reaches 1.0)
-                - c: right shoulder (membership starts falling from 1.0)
-                - d: right foot (membership reaches 0)
+            membership_parameters (list[float]): Parameters defining the membership function 
             domain (list[float]): Two-element list [min, max] defining the universe
                 of discourse for this fuzzy set
-                
-        Example:
-            >>> fs = FS("medium", [2, 3, 7, 8], [0, 10])
-            >>> # Creates a trapezoidal set: rises from 2-3, flat 3-7, falls 7-8
         """
         self.name = name
         self.domain = domain
@@ -101,7 +95,7 @@ class FS():
 
 
     @abc.abstractmethod
-    def membership(self, x: np.array) -> np.array:
+    def membership(self, x: np.ndarray) -> np.ndarray:
         """
         Compute membership degrees for input values.
 
@@ -109,12 +103,11 @@ class FS():
         using the membership function defined by this fuzzy set's parameters.
 
         Args:
-            x (np.array): Input value(s) for which to compute membership degrees.
+            x (np.ndarray): Input value(s) for which to compute membership degrees.
                 Can be a single value, list, or numpy array.
 
         Returns:
-            np.array: Membership degree(s) in the range [0, 1]. Shape matches input.
-
+            np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
         """
         raise NotImplementedError
 
@@ -122,10 +115,10 @@ class FS():
     @abc.abstractmethod
     def type(self) -> FUZZY_SETS:
         """
-        Return the fuzzy set type identifier.
+        Returns the fuzzy set type identifier.
 
         Returns:
-            FUZZY_SETS: The type identifier (FUZZY_SETS.t1 for Type-1 fuzzy sets)
+            FUZZY_SETS: The type identifier.
         """
         raise NotImplementedError
     
@@ -135,7 +128,8 @@ class FS():
         '''
         Returns the name of the fuzzy set, its type and its parameters.
         
-        :return: string.
+        Returns: 
+            string: name, type and parameters of the fuzzy set.
         '''
         raise NotImplementedError
     
@@ -145,7 +139,8 @@ class FS():
         '''
         Returns the shape of the fuzzy set.
 
-        :return: string.
+        Returns: 
+            string: shape of the fuzzy set.
         '''
         raise NotImplementedError
 
@@ -155,18 +150,50 @@ class FS():
         '''
         Returns True if the fuzzy set is empty (all parameters are 0).
 
-        :return: bool.
+        Returns: 
+            bool: if the fuzzy set is empty or not.
         '''
         raise NotImplementedError
 
 
 class TrapezoidalFS(FS):
+    """
+    Trapezoidal fuzzy set implementation.
+    """
     def __init__(self, name: str, membership_parameters: list[float], domain: list[float], height: float=1.0) -> None:
+        """
+        Initialize a trapezoidal fuzzy set.
+
+        Args:
+            name (str): Linguistic name for the fuzzy set
+            membership_parameters (list[float]): Four parameters [a, b, c, d] defining 
+                the trapezoidal membership function where:
+                - a: left foot (membership starts rising from 0)
+                - b: left shoulder (membership reaches 1.0)
+                - c: right shoulder (membership starts falling from 1.0)
+                - d: right foot (membership reaches 0) 
+            domain (list[float]): Two-element list [min, max] defining the universe
+                of discourse for this fuzzy set
+            height (float): Max value of the membership function. It is 1 by default.
+        """
         super().__init__(name, membership_parameters, domain)
         self.height = height
 
 
-    def membership(self, x: np.array, epsilon=10E-5) -> np.array:
+    def membership(self, x: ArrayLike, epsilon=10E-5) -> np.ndarray:
+        """
+        Compute membership degrees for input values.
+
+        This method calculates the membership degree(s) for the given input value(s)
+        using the membership function defined by this fuzzy set's parameters.
+
+        Args:
+            x (array-like): Input value(s) for which to compute membership degrees.
+                Can be a single value, list, or numpy array.
+
+        Returns:
+            np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
+        """
         a, b, c, d = self.membership_parameters
         h = self.height
 
@@ -202,28 +229,82 @@ class TrapezoidalFS(FS):
 
 
     def is_empty(self) -> bool:
+        '''
+        Returns True if the fuzzy set is empty (all parameters are 0).
+
+        Returns: 
+            bool: if the fuzzy set is empty or not.
+        '''
         return self.membership_parameters == [0, 0, 0, 0]
 
 
     def type(self) -> FUZZY_SETS:
+        """
+        Returns the fuzzy set type identifier.
+
+        Returns:
+            FUZZY_SETS: The type identifier.
+        """
         return FUZZY_SETS.t1
     
 
     def __str__(self) -> str:
+        '''
+        Returns the name of the fuzzy set, its type and its parameters.
+        
+        Returns: 
+            string: name, type and parameters of the fuzzy set.
+        '''
         return f'{self.name} ({self.type().name}) - {self.membership_parameters} - {self.height}'
     
 
     def shape(self) -> str:
+        '''
+        Returns the shape of the fuzzy set.
+
+        Returns: 
+            string: shape of the fuzzy set ('trapezoid' in this case).
+        '''
         return 'trapezoid'
 
 
 class TriangularFS(FS):
+    """
+    Triangular fuzzy set implementation.
+    """
     def __init__(self, name: str, membership_parameters: list[float], domain: list[float], height: float=1.0) -> None:
+        """
+        Initialize a triangular fuzzy set.
+
+        Args:
+            name (str): Linguistic name for the fuzzy set
+            membership_parameters (list[float]): Three parameters [a, b, c] defining 
+                the triangular membership function where:
+                - a: left foot (membership starts rising from 0)
+                - b: peak (membership reaches 1.0)
+                - c: right foot (membership reaches 0)
+            domain (list[float]): Two-element list [min, max] defining the universe
+                of discourse for this fuzzy set
+            height (float): Max value of the membership function. It is 1 by default.
+        """
         super().__init__(name, membership_parameters, domain)
         self.height = height
 
     
     def membership(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute membership degrees for input values.
+
+        This method calculates the membership degree(s) for the given input value(s)
+        using the membership function defined by this fuzzy set's parameters.
+
+        Args:
+            x (np.ndarray): Input value(s) for which to compute membership degrees.
+                Can be a single value, list, or numpy array.
+
+        Returns:
+            np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
+        """
         a, b, c = self.membership_parameters
         h = self.height
 
@@ -250,52 +331,131 @@ class TriangularFS(FS):
 
 
     def type(self) -> FUZZY_SETS:
+        """
+        Returns the fuzzy set type identifier.
+
+        Returns:
+            FUZZY_SETS: The type identifier.
+        """
         return FUZZY_SETS.t1
     
 
     def __str__(self) -> str:
+        '''
+        Returns the name of the fuzzy set, its type and its parameters.
+        
+        Returns: 
+            string: name, type and parameters of the fuzzy set.
+        '''
         return f'{self.name} ({self.type().name}) - {self.membership_parameters} - {self.height}'
     
 
     def shape(self) -> str:
+        '''
+        Returns the shape of the fuzzy set.
+
+        Returns: 
+            string: shape of the fuzzy set ('triangular' in this case).
+        '''
         return 'triangular'
 
 
 class GaussianFS(FS):
+    """
+    Gaussian fuzzy set implementation.
+    """
     def __init__(self, name: str, membership_parameters: list[float], universe_size: int) -> None:
+        """
+        Initialize a Gaussian fuzzy set.
+
+        Args:
+            name (str): Linguistic name for the fuzzy set
+            membership_parameters (list[float]): Two parameters [mean, std] defining 
+                the gaussian membership function where:
+                - mean: center of the gaussian curve where the membership function is 1
+                - std: spread of the gaussian curve. Must be greater than 0
+            universe_size (int): Number of elements considered in the discrete membership function
+        """
+        mean, std = membership_parameters
+        if std <= 0:
+            raise ValueError("std must be greater than 0.")
         super().__init__(name, membership_parameters)
         self.universe_size = universe_size
 
 
-    def membership(self, x: np.array) -> np.array:
-        mean, standard_deviation = self.membership_parameters
-        return np.exp(-(x - mean)**2 / (2*standard_deviation**2))
+    def membership(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute membership degrees for input values.
+
+        This method calculates the membership degree(s) for the given input value(s)
+        using the membership function defined by this fuzzy set's parameters.
+        
+        The membership function is defined as:
+
+        μ(x) = exp(- (x - mean)^2 / (2 * std^2))
+
+        Args:
+            x (np.ndarray): Input value(s) for which to compute membership degrees.
+                Can be a single value, list, or numpy array.
+
+        Returns:
+            np.ndarray: Membership degree(s) in the range (0, 1]. Shape matches input.
+        """
+        mean, std = self.membership_parameters
+        return np.exp(-(x - mean)**2 / (2*std**2))
 
     
     def type(self) -> FUZZY_SETS:
+        """
+        Returns the fuzzy set type identifier.
+
+        Returns:
+            FUZZY_SETS: The type identifier.
+        """
         return FUZZY_SETS.t1
     
 
     def __str__(self) -> str:
+        '''
+        Returns the name of the fuzzy set, its type and its parameters.
+        
+        Returns: 
+            string: name, type and parameters of the fuzzy set.
+        '''
         return f'{self.name} ({self.type().name}) - {self.membership_parameters}'
     
 
     def shape(self) -> str:
+        '''
+        Returns the shape of the fuzzy set.
+
+        Returns: 
+            string: shape of the fuzzy set ('gaussian' in this case).
+        '''
         return 'gaussian'
 
 
+# TODO: Implement CategoricalFS
 class CategoricalFS(FS):
     pass
 
+
+# TODO: Implement GT2
 class GT2(FS):
     pass
 
+
+# TODO: Implement IVFS
 class IVFS(FS):
     pass
 
+
+# TODO: Implement CategoricalIVFS
 class CategoricalIVFS(IVFS):
     pass
 
+
+# TODO: Implement GaussianIVFS
 class GaussianIVFS(IVFS):
     pass
 
