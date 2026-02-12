@@ -125,34 +125,34 @@ class FS():
 
     @abc.abstractmethod
     def __str__(self) -> str:
-        '''
+        """
         Returns the name of the fuzzy set, its type and its parameters.
         
         Returns: 
             string: name, type and parameters of the fuzzy set.
-        '''
+        """
         raise NotImplementedError
     
 
     @abc.abstractmethod
     def shape(self) -> str:
-        '''
+        """
         Returns the shape of the fuzzy set.
 
         Returns: 
             string: shape of the fuzzy set.
-        '''
+        """
         raise NotImplementedError
 
 
     @abc.abstractmethod
     def is_empty(self) -> bool:
-        '''
+        """
         Returns True if the fuzzy set is empty (all parameters are 0).
 
         Returns: 
             bool: if the fuzzy set is empty or not.
-        '''
+        """
         raise NotImplementedError
 
 
@@ -229,12 +229,12 @@ class TrapezoidalFS(FS):
 
 
     def is_empty(self) -> bool:
-        '''
+        """
         Returns True if the fuzzy set is empty (all parameters are 0).
 
         Returns: 
             bool: if the fuzzy set is empty or not.
-        '''
+        """
         return self.membership_parameters == [0, 0, 0, 0]
 
 
@@ -249,22 +249,22 @@ class TrapezoidalFS(FS):
     
 
     def __str__(self) -> str:
-        '''
+        """
         Returns the name of the fuzzy set, its type and its parameters.
         
         Returns: 
             string: name, type and parameters of the fuzzy set.
-        '''
+        """
         return f'{self.name} ({self.type().name}) - {self.membership_parameters} - {self.height}'
     
 
     def shape(self) -> str:
-        '''
+        """
         Returns the shape of the fuzzy set.
 
         Returns: 
             string: shape of the fuzzy set ('trapezoid' in this case).
-        '''
+        """
         return 'trapezoid'
 
 
@@ -341,22 +341,22 @@ class TriangularFS(FS):
     
 
     def __str__(self) -> str:
-        '''
+        """
         Returns the name of the fuzzy set, its type and its parameters.
         
         Returns: 
             string: name, type and parameters of the fuzzy set.
-        '''
+        """
         return f'{self.name} ({self.type().name}) - {self.membership_parameters} - {self.height}'
     
 
     def shape(self) -> str:
-        '''
+        """
         Returns the shape of the fuzzy set.
 
         Returns: 
             string: shape of the fuzzy set ('triangular' in this case).
-        '''
+        """
         return 'triangular'
 
 
@@ -416,22 +416,22 @@ class GaussianFS(FS):
     
 
     def __str__(self) -> str:
-        '''
+        """
         Returns the name of the fuzzy set, its type and its parameters.
         
         Returns: 
             string: name, type and parameters of the fuzzy set.
-        '''
+        """
         return f'{self.name} ({self.type().name}) - {self.membership_parameters}'
     
 
     def shape(self) -> str:
-        '''
+        """
         Returns the shape of the fuzzy set.
 
         Returns: 
             string: shape of the fuzzy set ('gaussian' in this case).
-        '''
+        """
         return 'gaussian'
 
 
@@ -460,10 +460,32 @@ class GaussianIVFS(IVFS):
     pass
 
 
+# TODO: implement Gaussian cut
+# TODO: handle edge case TriangularFS and h = 1
 def cut(fs1: FS, h: float) -> TrapezoidalFS:
+    """
+    Clips (truncates) the given fuzzy set at height h.
+
+    This method limits the membership function to a maximum value of h,
+    producing a new TrapezoidalFS whose peak membership equals h.
+
+    Args:
+        fs1 (FS): Input fuzzy set to be cut. Must be either trapezoid or triangular. 
+        h (float): Height used to cut the given fuzzy set. Must be in range [0, 1].
+
+    Returns:
+        TrapezoidalFS: Resulting fuzzy set from cutting the given one.
+
+    Note:
+        - If fs1 is triangular, the result is a trapezoidal fuzzy set.
+        - If h == 0, the resulting fuzzy set has zero membership everywhere.
+        - If h == 1 and fs1 is trapezoidal, the original shape is preserved. 
+    """
     if fs1.shape() != 'trapezoid' and fs1.shape() != 'triangular':
-        print('The fuzzy set must be either trapezoid or triangular')
-        return None
+        raise ValueError('The fuzzy set must be either trapezoid or triangular.')
+
+    if h < 0 or h > 1:
+        raise ValueError("h must be in range [0, 1].")
 
     if h == 0:
         fs2 = TrapezoidalFS(f"cut {fs1.name}",  [0, 0, 0, 0], fs1.domain, h)
@@ -485,33 +507,79 @@ def cut(fs1: FS, h: float) -> TrapezoidalFS:
     return fs2
 
 
-def compute_intersection_x(s1, s2) -> float:
+def compute_intersection_x(s1, s2) -> float | None:
+    """
+    In the xy plane, computes the x component of the intersection between two segments.
+
+    Args:
+        s1 (list[tuple[float, float]]): First segment [(x1, y1), (x2, y2)].
+        s2 (list[tuple[float, float]]): Second segment [(x1_p, y1_p), (x2_p, y2_p)].
+
+    Returns:
+        float | None: x component of the intersection between the segments, orNone if the segments don't intersect. 
+
+    Note:
+        A segment AB is defined by two points A(x1, y1) and B(x2, y2).
+    """
     x1, y1 = s1[0]
     x2, y2 = s1[1]
     x1_p, y1_p = s2[0]
     x2_p, y2_p = s2[1]
 
-    if x2 == x1 or x2_p == x1_p:
+    is_vertical1 = x2 == x1
+    is_vertical2 = x2_p == x1_p
+
+    if is_vertical1 and is_vertical2:
+        return x1 if x1 == x1_p else None
+
+    if is_vertical1:
+        m_p = (y2_p - y1_p) / (x2_p - x1_p)        
+        y = m_p * (x1 - x1_p) + y1_p
+        
+        if min(y1, y2) <= y <= max(y1, y2) and min(y1_p, y2_p) <= y <= max(y1_p, y2_p):
+            return x1
+        return None
+
+    if is_vertical2:
+        m = (y2 - y1) / (x2 - x1)
+        y = m * (x1_p - x1) + y1
+        
+        if min(y1, y2) <= y <= max(y1, y2) and min(y1_p, y2_p) <= y <= max(y1_p, y2_p):
+            return x1_p
         return None
 
     m = (y2 - y1) / (x2 - x1)
     m_p = (y2_p - y1_p) / (x2_p - x1_p)
 
     if m == m_p:
-        return None
+        return None  # parallel segments
 
     x = (m*x1 - m_p*x1_p + y1_p - y1) / (m - m_p)
-    return x
+    if min(x1, x2) <= x <= max(x1, x2) and min(x1_p, x2_p) <= x <= max(x1_p, x2_p):
+        return x
+    return None
 
 
-def segments_may_intersect(s1, s2) -> None:
-    x2, _ = s1[1]
-    x1_p, _ = s2[0]
+def segments_may_intersect(s1, s2) -> bool:
+    """
+    In the xy plane, checks if the x-projections of two line segments overlap.
 
-    return x2 >= x1_p
+    Args:
+        s1 (list[tuple[float, float]]): First segment [(x1, y1), (x2, y2)].
+        s2 (list[tuple[float, float]]): Second segment [(x1_p, y1_p), (x2_p, y2_p)].
+    
+    Returns:
+        bool: True if the x-ranges of the segments overlap, False otherwise.
+    
+    Note:
+        This is only a necessary condition for intersection, not a guarantee.
+        Segments may still not intersect if their y-ranges or slopes differ.
+    """
+    return (max(s1[0][0], s1[1][0]) >= min(s2[0][0], s2[1][0]) and  
+            max(s2[0][0], s2[1][0]) >= min(s1[0][0], s1[1][0]))
 
 
-def union(trapezoids: list[FS]) -> tuple:
+def union(trapezoids: list[FS]) -> tuple[np.ndarray, np.ndarray]:
     if not trapezoids:
         return [], []
 
@@ -536,7 +604,7 @@ def union(trapezoids: list[FS]) -> tuple:
             segments.append(([(x2,h2),(x3,h3)], i))
             segments.append(([(x3,h3),(x4,h4)], i))
 
-    if p_x == set():
+    if not p_x:
         return None, None
 
     for i in range(len(segments)):
@@ -547,9 +615,7 @@ def union(trapezoids: list[FS]) -> tuple:
             # only intersect segments from different trapezoids
             if idx1 != idx2 and segments_may_intersect(s1, s2):
                 x_intersect = compute_intersection_x(s1, s2)
-                    
-                # check if intersection lies within both segments
-                if x_intersect is not None and (s1[0][0] <= x_intersect <= s1[1][0] and s2[0][0] <= x_intersect <= s2[1][0]):
+                if x_intersect is not None:
                     p_x.add(x_intersect)
 
     p_x = np.sort(np.array(list(p_x)))

@@ -123,14 +123,14 @@ def test_compute_intersection_x_returns_none_for_parallel_lines():
     assert x is None
 
 
-def test_compute_intersection_x_returns_none_when_segment_is_vertical():
+def test_compute_intersection_x_handles_vertical_segments_correctly():
     """Vertical segments return None."""
     s1 = [(1, 0), (1, 2)]
     s2 = [(0, 1), (2, 1)]
 
     x = fs.compute_intersection_x(s1, s2)
 
-    assert x is None
+    assert x == 1
 
 
 def test_trapezoidal_union_combines_overlapping_sets_correctly():
