@@ -5,7 +5,7 @@ from ex_fuzzy_reg.fuzzy_sets import TriangularFS
 from ex_fuzzy_reg import fuzzy_variable as fv
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
 
-
+# TODO: document this module
 def generate_triangular_partitions(data: np.ndarray, n_labels: int=3, fs_label_names: list[str]=None, fv_label_names: list[str]=None) -> list[fv.FuzzyVariable]:
     if n_labels < 3:
         raise ValueError("n_labels must be greater or equal to 3.")
