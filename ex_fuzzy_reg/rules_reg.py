@@ -108,7 +108,7 @@ class RuleBaseRegT1(RuleBase):
 
                 cut_consequents.append(fs.cut(self.consequent.__getitem__(rule_consequent), cut_height))
             
-            aggregated_consequents = fs.union(cut_consequents)
+            aggregated_consequents = fs.trapezoidal_union(cut_consequents)
             p_x, p_y = aggregated_consequents
 
             x_crisp = fs.centroid_defuzzification(p_x, p_y)
@@ -221,3 +221,8 @@ class RuleBaseRegTSK:
             output.append(x_agg)
 
         return output
+
+
+    # TODO: print_rules 
+    def print_rules(self) -> None:
+        pass
