@@ -16,15 +16,15 @@ class RuleBaseRegT1(RuleBase):
 
     This class supports t1 fs.
     '''
-
     def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable = None, tnorm = np.prod) -> None:
         '''
         Constructor of the RuleBaseT1 class.
 
-        :param antecedents: list of fuzzy variables that are the antecedents of the rules.
-        :param rules: list of rules.
-        :param consequent: fuzzy variable that is the consequent of the rules. ONLY on regression problems.
-        :param tnorm: t-norm used to compute the fuzzy output.
+        Args:
+            antecedents (list[FuzzyVariable]): list of fuzzy variables that are the antecedents of the rules.
+            rules (list[RuleSimple]): list of rules.
+            consequent (FuzzyVariable): fuzzy variable that is the consequent of the rules. ONLY on regression problems.
+            tnorm: t-norm used to compute the fuzzy output.
         '''
         self.rules = rules
         self.antecedents = antecedents
@@ -35,10 +35,12 @@ class RuleBaseRegT1(RuleBase):
     def compute_antecedents_memberships(self, x: np.ndarray) -> np.ndarray:
         '''
         Returns a list of of dictionaries that contains the memberships for each x value to the ith antecedents, nth linguistic variable.
-        x must be a vector (only one sample)
 
-        :param x: vector with the values of the inputs.
-        :return: a list with the antecedent truth values for each one. Each list is comprised of a list with n elements, where n is the number of linguistic variables in each variable.
+        Args:
+            x: vector (only one sample) with the values of the inputs. 
+        
+        Returns: 
+            np.ndarray: a list with the antecedent truth values for each one. Each list is comprised of a list with n elements, where n is the number of linguistic variables in each variable.
         '''
         if len(self.rules) > 0:
             cache_antecedent_memberships = []
@@ -87,10 +89,11 @@ class RuleBaseRegT1(RuleBase):
         '''
         Computes the output of the t1 inference system.
 
-        Return an array in shape samples.
-
-        :param x: array with the values of the inputs.
-        :return: array with the output of the inference system for each sample.
+        Args:
+            x: array with the values of the inputs.
+        
+        Returns: 
+            np.ndarray: array with the output of the inference system for each sample.
         '''
         output = []
 
@@ -120,8 +123,11 @@ class RuleBaseRegT1(RuleBase):
 
         Return a vector of size (samples, )
 
-        :param x: array with the values of the inputs.
-        :return: array with the deffuzified output for each sample.
+        Args:
+            x: array with the values of the inputs.
+        
+        Returns: 
+            np.ndarray: array with the deffuzified output for each sample.
         '''
         return self.inference(x)
 
@@ -130,7 +136,8 @@ class RuleBaseRegT1(RuleBase):
         '''
         Returns the correspoing type of the RuleBase using the enum type in the fuzzy_sets module.
 
-        :return: the corresponding fuzzy set type of the RuleBase.
+        Returns: 
+            FUZZY_SETS: the corresponding fuzzy set type of the RuleBase.
         '''
         return fs.FUZZY_SETS.t1
 
@@ -174,8 +181,11 @@ class RuleBaseRegTSK:
         Returns a list of of dictionaries that contains the memberships for each x value to the ith antecedents, nth linguistic variable.
         x must be a vector (only one sample)
 
-        :param x: vector with the values of the inputs.
-        :return: a list with the antecedent truth values for each one. Each list is comprised of a list with n elements, where n is the number of linguistic variables in each variable.
+        Args:
+            x: vector (only one sample) with the values of the inputs.
+        
+        Returns: 
+            np.ndarray: a list with the antecedent truth values for each one. Each list is comprised of a list with n elements, where n is the number of linguistic variables in each variable.
         '''
         truth_values = []
 

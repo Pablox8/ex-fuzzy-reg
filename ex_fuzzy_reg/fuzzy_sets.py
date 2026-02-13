@@ -638,7 +638,6 @@ def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.n
     return p_x, p_y
 
 
-# TODO: add documentation
 def centroid_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
     """
     Computes the x-coordinate of the centroid (center of gravity) of a 
