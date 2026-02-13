@@ -516,7 +516,7 @@ def compute_intersection_x(s1, s2) -> float | None:
         s2 (list[tuple[float, float]]): Second segment [(x1_p, y1_p), (x2_p, y2_p)].
 
     Returns:
-        float | None: x component of the intersection between the segments, orNone if the segments don't intersect. 
+        float | None: x component of the intersection between the segments, or None if the segments don't intersect. 
 
     Note:
         A segment AB is defined by two points A(x1, y1) and B(x2, y2).
@@ -578,8 +578,7 @@ def segments_may_intersect(s1, s2) -> bool:
     return (max(s1[0][0], s1[1][0]) >= min(s2[0][0], s2[1][0]) and  
             max(s2[0][0], s2[1][0]) >= min(s1[0][0], s1[1][0]))
 
-# TODO: complete documentation
-# TODO: fix lack of coherence in edge cases
+
 def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.ndarray]:
     """
     Given a list of trapezoids, computes and returns the points (x, y) representing the union of said trapezoids.
@@ -591,6 +590,7 @@ def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.n
         tuple[np.ndarray, np.ndarray]: x and y component of the calculated union points. Both have the same shape.
             - x (np.ndarray): Sorted x-coordinates covering all trapezoids and their intersections.
             - y (np.ndarray): Corresponding y-values representing the maximum membership at each x.
+        Returns (None, None) if no trapezoids are passed or all passed trapezoids are empty.
     """
     if not trapezoids:
         return None, None
