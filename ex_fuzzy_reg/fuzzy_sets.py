@@ -617,7 +617,7 @@ def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.n
             segments.append(([(x3,h3),(x4,h4)], i))
 
     if not p_x:
-        return None, None
+        return None, None # all trapezoids are empty
 
     for i in range(len(segments)):
         s1, idx1 = segments[i]

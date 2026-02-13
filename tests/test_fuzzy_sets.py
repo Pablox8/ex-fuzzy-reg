@@ -170,6 +170,15 @@ def test_trapezoidal_union_returns_none_if_no_trapezoids_passed():
     assert u_y is None
 
 
+def test_trapezoidal_union_returns_none_if_all_trapezoids_are_empty():
+    fs_empty1 = fs.TrapezoidalFS("empty 1", [0, 0, 0, 0], [0, 0])
+    fs_empty2 = fs.TrapezoidalFS("empty 2", [0, 0, 0, 0], [0, 0])
+    u_x, u_y = fs.trapezoidal_union([fs_empty1, fs_empty2])
+
+    assert u_x is None
+    assert u_y is None
+
+
 def test_centroid_defuzzification_matches_reference_example():
     p_x1 = np.array([0, 2, 2.7, 3, 4, 6])
     p_y1 = np.array([0, 0.7, 0.7, 1, 1, 0])
