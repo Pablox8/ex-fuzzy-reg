@@ -179,7 +179,7 @@ def test_trapezoidal_union_returns_none_if_all_trapezoids_are_empty():
     assert u_y is None
 
 
-def test_centroid_defuzzification_matches_reference_example():
+def test_centroid_defuzzification_returns_correct_value_for_matched_example():
     p_x1 = np.array([0, 2, 2.7, 3, 4, 6])
     p_y1 = np.array([0, 0.7, 0.7, 1, 1, 0])
 
@@ -198,18 +198,22 @@ def test_centroid_defuzzification_of_symmetric_triangle_is_center():
     assert x_crisp == pytest.approx(1.0)
 
 
-def test_centroid_defuzzification_returns_minus_inf_for_none_inputs():
-    """Returns -inf if inputs are None."""
-    assert fs.centroid_defuzzification(None, [0, 1]) == -np.inf
-    assert fs.centroid_defuzzification([0, 1], None) == -np.inf
+def test_centroid_defuzzification_raises_error_for_empty_inputs():
+    """Raises ValueError if inputs are empty."""
+    with pytest.raises(ValueError):
+        fs.centroid_defuzzification([], [0, 1])
+
+    with pytest.raises(ValueError):
+        fs.centroid_defuzzification([0, 1], [])
 
 
-def test_centroid_defuzzification_returns_minus_inf_for_length_mismatch():
-    """Returns -inf if inputs have different lengths."""
+def test_centroid_defuzzification_raises_error_for_length_mismatch():
+    """Raises ValueError if inputs have different lengths."""
     p_x = [0, 1, 2]
     p_y = [0, 1]
 
-    assert fs.centroid_defuzzification(p_x, p_y) == -np.inf
+    with pytest.raises(ValueError):
+        fs.centroid_defuzzification(p_x, p_y)
 
 
 def test_centroid_defuzzification_of_constant_segment_is_midpoint():
@@ -224,11 +228,20 @@ def test_centroid_defuzzification_of_constant_segment_is_midpoint():
 
 
 def test_centroid_defuzzification_returns_zero_for_zero_area_set():
-    """Flat line at zero (should handle division by zero)."""
+    """Returns 0 if total area is zero."""
     p_x = [0, 1]
     p_y = [0, 0]
 
     x_crisp = fs.centroid_defuzzification(p_x, p_y)
 
-    # function sets x_crisp = 0 if nan
     assert x_crisp == 0
+
+
+def test_centroid_defuzzification_ignores_vertical_segments():
+    """Vertical segments contribute no area and are ignored."""
+    p_x = [1, 1, 5, 5]
+    p_y = [0, 1, 1, 0]
+
+    x_crisp = fs.centroid_defuzzification(p_x, p_y)
+
+    assert x_crisp == pytest.approx(3.0)
