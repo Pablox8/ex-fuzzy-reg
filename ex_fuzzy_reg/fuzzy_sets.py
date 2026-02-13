@@ -639,13 +639,32 @@ def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.n
 
 
 # TODO: add documentation
-def centroid_defuzzification(p_x, p_y) -> float:
-    if p_x is None or p_y is None:
-        return -np.inf
+def centroid_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
+    """
+    Computes the x-coordinate of the centroid (center of gravity) of a 
+    fuzzy set with its membership function defined by linear segments.
+
+    The points (p_x[i], p_y[i]) are treated as connected points forming straight-line segments.
+    The centroid is calculated by integrating over each segment.
+
+    Args:
+        p_x (ArrayLike): 1D array of x-component of consecutive vertices.
+        p_y (ArrayLike): 1D array of y-component of consecutive vertices.
+        Both arrays must be non-empty and have the same shape.
+    
+    Returns:
+        float: x-coordinate of the centroid. 
+        Returns 0 if the total area is zero (which would otherwise result in NaN).
+    
+    Note:
+        Vertical segments are ignored because they contribute no area to the integral.
+    """
+    if len(p_x) == 0 or len(p_y) == 0:
+        raise ValueError("p_x and p_y must not be empty.")
 
     if len(p_x) != len(p_y):
-        return -np.inf
-
+        raise ValueError("p_x and p_y must have the same shape.")
+    
     p_x = np.asarray(p_x)
     p_y = np.asarray(p_y)
 
@@ -653,7 +672,13 @@ def centroid_defuzzification(p_x, p_y) -> float:
     a  = p_x[:-1]
     b  = p_x[1:] 
     y_a = p_y[:-1]
-    y_b = p_y[1:] 
+    y_b = p_y[1:]
+
+    non_vertical = (b - a) != 0
+    a = a[non_vertical]
+    b = b[non_vertical]
+    y_a = y_a[non_vertical]
+    y_b = y_b[non_vertical]
 
     # line equation
     m = (y_b - y_a) / (b - a)
