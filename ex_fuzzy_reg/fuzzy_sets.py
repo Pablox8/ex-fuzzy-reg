@@ -580,7 +580,7 @@ def segments_may_intersect(s1, s2) -> bool:
 
 # TODO: complete documentation
 # TODO: fix lack of coherence in edge cases
-def union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.ndarray]:
+def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.ndarray]:
     """
     Given a list of trapezoids, computes and returns the points (x, y) representing the union of said trapezoids.
 
@@ -593,7 +593,7 @@ def union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.ndarray]:
             - y (np.ndarray): Corresponding y-values representing the maximum membership at each x.
     """
     if not trapezoids:
-        return [], []
+        return None, None
 
     if len(trapezoids) == 1:
         p_x = trapezoids[0].membership_parameters

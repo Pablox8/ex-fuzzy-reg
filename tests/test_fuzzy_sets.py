@@ -137,7 +137,7 @@ def test_trapezoidal_union_combines_overlapping_sets_correctly():
     fs1 = fs.TrapezoidalFS("T1", [0, 2, 3, 4], [0, 6], 0.7)
     fs2 = fs.TrapezoidalFS("T2", [2, 3, 4, 6], [0, 6])
 
-    u_x, u_y = fs.union([fs1, fs2])
+    u_x, u_y = fs.trapezoidal_union([fs1, fs2])
 
     assert u_x == pytest.approx([0, 2, 2.7, 3, 4, 6])
     assert u_y == pytest.approx([0, 0.7, 0.7, 1, 1, 0])
@@ -147,7 +147,7 @@ def test_trapezoidal_union_ignores_empty_set():
     fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     empty = fs.TrapezoidalFS("empty", [1, 2, 3, 4], [0, 5], 0)
 
-    u_x, u_y = fs.union([fs_test, empty])
+    u_x, u_y = fs.trapezoidal_union([fs_test, empty])
 
     assert u_x == pytest.approx([1, 2, 3, 4])
     assert u_y == pytest.approx([0, 0.7, 0.7, 0])
@@ -157,10 +157,17 @@ def test_trapezoidal_union_takes_maximum_height_when_overlapping():
     fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     all_max_h = fs.TrapezoidalFS("all max h", [1, 2, 3, 4], [0, 5], 1)
     
-    u_x, u_y = fs.union([fs_test, all_max_h])
+    u_x, u_y = fs.trapezoidal_union([fs_test, all_max_h])
 
     assert u_x == pytest.approx([1, 2, 3, 4])
     assert u_y == pytest.approx([0, 1, 1, 0])
+
+
+def test_trapezoidal_union_returns_none_if_no_trapezoids_passed():
+    u_x, u_y = fs.trapezoidal_union([])
+
+    assert u_x is None
+    assert u_y is None
 
 
 def test_centroid_defuzzification_matches_reference_example():
