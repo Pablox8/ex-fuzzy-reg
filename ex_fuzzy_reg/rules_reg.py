@@ -156,7 +156,7 @@ class ConsequentTSK:
         if self.order == 0:
             return self.params[0]
 
-        return np.dot(x, self.params) 
+        return np.dot(x, self.params[1:]) + self.params[0]
 
 
 class RuleSimpleTSK:
