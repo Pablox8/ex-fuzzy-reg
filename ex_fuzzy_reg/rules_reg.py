@@ -7,6 +7,34 @@ from ex_fuzzy_reg import fuzzy_variable as fv
 
 # modifiers_names = {0.5: 'Somewhat', 1.0: '', 1.3: 'A little', 1.7: 'Slightly', 2.0: 'Very', 3.0: 'Extremely', 4.0: 'Very very'}
 
+
+def compute_antecedents_memberships(antecedents: list[fv.FuzzyVariable], x: np.ndarray) -> np.ndarray:
+    """
+    Compute membership degrees for input values across all fuzzy variables.
+    
+    This function calculates the membership degrees of input values for each linguistic
+    variable in the antecedents. It returns a structured representation that can be
+    used for efficient rule evaluation and inference.
+    
+    Args:
+        antecedents (list[fs.fuzzyVariable]): List of fuzzy variables representing
+            the antecedents (input variables) of the fuzzy system
+        x (np.ndarray): Input vector with values for each antecedent variable.
+            Shape should be (n_samples, n_variables) or (n_variables,) for single sample
+            
+    Returns: 
+        np.ndarray: a list with the antecedent truth values for each one. Each list is comprised of a list with n elements, where n is the number of linguistic variables in each variable.
+    """
+    x = np.array(x)
+    cache_antecedent_memberships = []
+
+    for ix, antecedent in enumerate(antecedents):
+        cache_antecedent_memberships.append(
+            antecedent.compute_memberships(x[:, ix]))
+
+    return np.array(cache_antecedent_memberships)
+
+
 # TODO: add tests and document for this module
 class RuleBaseRegT1(RuleBase):
     '''

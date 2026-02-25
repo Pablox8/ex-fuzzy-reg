@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from ex_fuzzy_reg import fuzzy_sets as fs
 from ex_fuzzy_reg import fuzzy_variable as fv
 from ex_fuzzy_reg import rules_reg as rules
-from ex_fuzzy_reg import evolutionary_fit as ef
+from ex_fuzzy_reg import evolutionary_fit_reg as ef
 
 
 def main():

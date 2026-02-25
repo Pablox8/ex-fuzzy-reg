@@ -72,8 +72,9 @@ class FitRuleBase(Problem):
     Class to model as pymoo problem the fitting of a rulebase for a classification problem using Evolutionary strategies. 
     Supports type 1 and iv fs (iv-type 2)
     '''
-
-    """     def _init_optimize_vl(self, fuzzy_type: fs.FUZZY_SETS, n_linguist_variables: int, domain: list[(float, float)] = None, categorical_variables: list[int] = None, X=None):
+    # TODO: work with categorical variables
+    #def _init_optimize_vl(self, fuzzy_type: fs.FUZZY_SETS, n_linguist_variables: int, domain: list[(float, float)] = None, categorical_variables: list[int] = None, X=None):
+    def _init_optimize_vl(self, fuzzy_type: fs.FUZZY_SETS, n_linguistic_variables: int, domain: list[(float, float)] = None, X=None):
         '''
         Inits the corresponding fields if no linguistic partitions were given.
 
@@ -81,46 +82,46 @@ class FitRuleBase(Problem):
         :param n_linguistic_variables: number of linguistic variables per antecedent.
         :param domain: list of the limits for each variable. If None (default) the classifier will compute them empirically.
         '''
-        try:
+        """ try:
             from . import utils
         except ImportError:
-            import utils
+            import utils """
 
         self.lvs = None
-        self.vl_names = [FitRuleBase.vl_names[n_linguist_variables[nn]] if n_linguist_variables[nn] < 6 else list(map(str, np.arange(nn))) for nn in range(len(n_linguist_variables))]
-        
+        self.vl_names = [FitRuleBase.vl_names[n_linguistic_variables[nn]] if n_linguistic_variables[nn] < 6 else list(map(str, np.arange(nn))) for nn in range(len(n_linguistic_variables))]
 
         self.fuzzy_type = fuzzy_type
         self.domain = domain
         self._precomputed_truth = None
-        self.categorical_mask = categorical_variables
+        """ self.categorical_mask = categorical_variables
         self.categorical_boolean_mask =  np.array(categorical_variables) > 0 if categorical_variables is not None else None 
         self.categorical_variables = {}
         for ix, cat in enumerate(categorical_variables):
             if cat > 0:
-                self.categorical_variables[ix] = utils.construct_crisp_categorical_partition(np.array(X)[:, ix], self.var_names[ix], fuzzy_type)
+                self.categorical_variables[ix] = utils.construct_crisp_categorical_partition(np.array(X)[:, ix], self.var_names[ix], fuzzy_type) """
         
         self.n_lv_possible = []
         for ix in range(len(self.categorical_mask)):
             if self.categorical_mask[ix] > 0:
                 self.n_lv_possible.append(len(self.categorical_variables[ix]))
             else:
-                self.n_lv_possible.append(n_linguist_variables[ix])
+                self.n_lv_possible.append(n_linguistic_variables[ix])
 
 
-    def _init_precomputed_vl(self, linguist_variables: list[fv.FuzzyVariable], X: np.array):
+    def _init_precomputed_vl(self, linguistic_variables: list[fv.FuzzyVariable], X: np.array):
         '''
         Inits the corresponding fields if linguistic partitions for each variable are given.
 
         :param linguistic_variables: list of fuzzyVariables type.
         :param X: np array samples x features.
         '''
-        self.lvs = linguist_variables
+        self.lvs = linguistic_variables
         self.vl_names = [lv.linguistic_variable_names() for lv in self.lvs]
         self.n_lv_possible = [len(lv.linguistic_variable_names()) for lv in self.lvs]
         self.fuzzy_type = self.lvs[0].fs_type
         self.domain = None
-        self._precomputed_truth = rules_reg.compute_antecedents_memberships(linguist_variables, X)
+        self._precomputed_truth = rules_reg.compute_antecedents_memberships(linguistic_variables, X)
+
 
     vl_names = [  # Linguistic variable names prenamed for some specific cases.
         [],
@@ -129,7 +130,7 @@ class FitRuleBase(Problem):
         ['Low', 'Medium', 'High'],
         ['Low', 'Medium', 'High', 'Very High'],
         ['Very Low', 'Low', 'Medium', 'High', 'Very High']
-    ] """
+    ]
 
     def __init__(self, X: np.array, y: np.array, n_rules: int, n_ants: int, thread_runner: Optional[Any]=None,
                  antecedents: list[fv.FuzzyVariable]=None, consequent: fv.FuzzyVariable=None, n_linguistic_variables: int=3, fuzzy_type=fs.FUZZY_SETS.t1, domain: list=None, tolerance: float=0.01, alpha: float=0.0, beta: float=0.0, optimize_lv: bool=False, fuzzy_set_type: str='trapezoidal', backend_name: str='pymoo', var_names: list=None) -> None:
@@ -184,13 +185,13 @@ class FitRuleBase(Problem):
             self.n_lv_possible = [n_linguistic_variables] * self.X.shape[1]
             self.lvs = None
 
-        """         if antecedents is not None:
+        if antecedents is not None:
             self._init_precomputed_vl(antecedents, X)
         else:
             n_linguistic_variables = [n_linguistic_variables] * self.X.shape[1]
             
             self._init_optimize_vl(
-                fuzzy_type=fuzzy_type, n_linguist_variables=n_linguistic_variables, categorical_variables=categorical_mask, domain=domain, X=X) """
+                fuzzy_type=fuzzy_type, n_linguist_variables=n_linguistic_variables, categorical_variables=categorical_mask, domain=domain, X=X) 
 
         if self.domain is None:
             # If all the variables are numerical, then we can compute the min/max of the domain.
@@ -387,4 +388,3 @@ class FitRuleBase(Problem):
             
         return score
     
-
