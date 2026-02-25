@@ -1,4 +1,3 @@
-from tkinter import W
 import numpy as np
 from ex_fuzzy.rules import RuleSimple, RuleBase
 
@@ -16,7 +15,7 @@ class RuleBaseRegT1(RuleBase):
 
     This class supports t1 fs.
     '''
-    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable = None, tnorm = np.prod) -> None:
+    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable=None, tnorm = np.prod) -> None:
         '''
         Constructor of the RuleBaseT1 class.
 
