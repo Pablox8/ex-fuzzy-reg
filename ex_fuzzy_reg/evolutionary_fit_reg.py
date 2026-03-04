@@ -34,7 +34,7 @@ import pandas as pd
 
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import matthews_corrcoef
-from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.base import BaseEstimator, RegressorMixin
 from multiprocessing.pool import ThreadPool
 from pymoo.core.problem import Problem
 from pymoo.core.variable import Integer
@@ -67,7 +67,7 @@ except ImportError:
     import ex_fuzzy_reg.rules as rules_reg
 
 
-class FitRuleBase(Problem):
+class FitRuleBaseReg(Problem):
     '''
     Class to model as pymoo problem the fitting of a rulebase for a classification problem using Evolutionary strategies. 
     Supports type 1 and iv fs (iv-type 2)
@@ -88,7 +88,7 @@ class FitRuleBase(Problem):
             import utils """
 
         self.lvs = None
-        self.vl_names = [FitRuleBase.vl_names[n_linguistic_variables[nn]] if n_linguistic_variables[nn] < 6 else list(map(str, np.arange(nn))) for nn in range(len(n_linguistic_variables))]
+        self.vl_names = [FitRuleBaseReg.vl_names[n_linguistic_variables[nn]] if n_linguistic_variables[nn] < 6 else list(map(str, np.arange(nn))) for nn in range(len(n_linguistic_variables))]
 
         self.fuzzy_type = fuzzy_type
         self.domain = domain
@@ -148,7 +148,7 @@ class FitRuleBase(Problem):
             n_linguistic_variables (int, optional): Number of linguistic variables per antecedent. Defaults to 3. Ignored if `antecedents` is provided.
             fuzzy_type (fs.FUZZY_SETS, optional): The fuzzy set or fuzzy set extension used for the linguistic variable. Defaults to fs.FUZZY_SETS.t1.
             domain (list[tuple], optional): A list specifying the lower and upper bounds for each input variable. Defaults to None, where empirical min/max values are used.
-            tolerance (float, optional): Tolerance for evaluating the fuzzy model’s performance. Defaults to 0.01.
+            tolerance (float, optional): Tolerance for evaluating the fuzzy model's performance. Defaults to 0.01.
             alpha (float, optional): Weight for the rulebase size term in the fitness function (penalizes the number of rules). Defaults to 0.0.
             beta (float, optional): Weight for the average rule size term in the fitness function. Defaults to 0.0.
             optimize_lv (bool, optional): Whether to optimize linguistic variables during the learning process. Defaults to False.
@@ -221,7 +221,9 @@ class FitRuleBase(Problem):
                 self.min_bounds, self.max_bounds = self.domain
 
         self.antecedents_referencial = [np.linspace(
-            self.min_bounds[ix], self.max_bounds[ix], 100) for ix in range(self.X.shape[1])] 
+            self.min_bounds[ix], self.max_bounds[ix], 100) for ix in range(self.X.shape[1])]
+
+        self.consequent_referencial = np.linspace(np.min(y), np.max(y), 100) 
 
         possible_antecedent_bounds = np.array([[0, self.X.shape[1] - 1]] * self.n_ants * self.n_rules)
         vl_antecedent_bounds = np.array([[ -1, self.n_lv_possible[ax] - 1] for ax in range(self.n_ants)] * self.n_rules)
@@ -293,10 +295,13 @@ class FitRuleBase(Problem):
                 xu=varbound[:, 1]) 
 
 
-    # TODO: optimize_lv = True case
     def encode_rulebase(self, rule_base: RuleBaseRegT1, optimize_lv: bool=False):
+        n_lv_possible_ants = len(rule_base.antecedents[0].get_linguistic_variables())
+        n_lv_possible_cons = len(rule_base.consequent.get_linguistic_variables())
+
         antecedents_used = [] # first section
         antecedents_lvs_used = [] # second section
+        partitions_params = [] # third section
         consequent_lvs_used = [] # fourth section
 
         for rule in rule_base.rules:
@@ -304,7 +309,25 @@ class FitRuleBase(Problem):
             antecedents_lvs_used += rule.antecedents
             consequent_lvs_used += [rule.consequent]
 
-        x = antecedents_used + antecedents_lvs_used + consequent_lvs_used
+        if optimize_lv:
+            for ix, fuzzy_variable in enumerate(rule_base.antecedents):
+                for linguistic_variable in range(n_lv_possible_ants):
+                    fz_parameters = fuzzy_variable[linguistic_variable].membership_parameters
+                    parameters_closest_idxs = []
+                    for jx, fz_parameter in enumerate(fz_parameters):
+                        closest_idx = (np.abs(np.asarray(self.antecedents_referencial[ix]) - fz_parameter)).argmin()
+                        parameters_closest_idxs.append(closest_idx)
+                    partitions_params += parameters_closest_idxs
+
+            for linguistic_variable in range(n_lv_possible_cons):
+                fz_parameters = rule_base.consequent[linguistic_variable].membership_parameters
+                parameters_closest_idxs = [] 
+                for jx, fz_parameter in enumerate(fz_parameters):
+                    closest_idx = (np.abs(np.asarray(self.consequent_referencial) - fz_parameter)).argmin()
+                    parameters_closest_idxs.append(closest_idx)
+                partitions_params += parameters_closest_idxs
+
+        x = antecedents_used + antecedents_lvs_used + partitions_params + consequent_lvs_used
         return np.array(x)
 
 

@@ -6,7 +6,7 @@ from ex_fuzzy_reg import fuzzy_variable as fv
 
 
 # modifiers_names = {0.5: 'Somewhat', 1.0: '', 1.3: 'A little', 1.7: 'Slightly', 2.0: 'Very', 3.0: 'Extremely', 4.0: 'Very very'}
-
+# TODO: MasterRuleBaseReg ¿?
 
 def compute_antecedents_memberships(antecedents: list[fv.FuzzyVariable], x: np.ndarray) -> np.ndarray:
     """
@@ -43,14 +43,14 @@ class RuleBaseRegT1(RuleBase):
 
     This class supports t1 fs.
     '''
-    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable=None, tnorm = np.prod) -> None:
+    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable, tnorm = np.prod) -> None:
         '''
         Constructor of the RuleBaseT1 class.
 
         Args:
             antecedents (list[FuzzyVariable]): list of fuzzy variables that are the antecedents of the rules.
             rules (list[RuleSimple]): list of rules.
-            consequent (FuzzyVariable): fuzzy variable that is the consequent of the rules. ONLY on regression problems.
+            consequent (FuzzyVariable): fuzzy variable that is the consequent of the rules. 
             tnorm: t-norm used to compute the fuzzy output.
         '''
         self.rules = rules
