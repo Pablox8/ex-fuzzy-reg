@@ -26,6 +26,7 @@ Key Features:
     - Automatic handling of imbalanced datasets
     - Configurable complexity penalties to avoid overfitting
 """
+# TODO: organize imports
 import os 
 from typing import Callable, Any, Optional, Union
 
@@ -40,6 +41,8 @@ from pymoo.core.problem import Problem
 from pymoo.core.variable import Integer
 
 from ex_fuzzy.rules import RuleSimple
+from ex_fuzzy_reg.fuzzy_sets import TriangularFS
+from ex_fuzzy_reg.fuzzy_variable import FuzzyVariable
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
 
 # Handle pymoo version compatibility for parallelization
@@ -156,6 +159,9 @@ class FitRuleBaseReg(Problem):
             backend_name (str, optional): The optimization backend to use. Defaults to 'pymoo'.
             var_names (list[str], optional): List of variable names. Defaults to None, where names are auto-generated or extracted from DataFrame columns.
         '''
+        if optimize_lv:
+            raise NotImplemented
+
         if var_names is not None:
             self.var_names = var_names
             self.X = np.array(X) if not isinstance(X, np.ndarray) else X
@@ -173,6 +179,7 @@ class FitRuleBaseReg(Problem):
         self.n_rules = n_rules
         self.n_ants = n_ants
         self.n_cons = 1 
+        self.n_lv = n_linguistic_variables
         self.domain = domain
 
         self.antecedents = antecedents
@@ -193,6 +200,7 @@ class FitRuleBaseReg(Problem):
             self._init_optimize_vl(
                 fuzzy_type=fuzzy_type, n_linguist_variables=n_linguistic_variables, categorical_variables=categorical_mask, domain=domain, X=X) 
 
+        # TODO: add consequent domain to min_bounds and max_bounds
         if self.domain is None:
             # If all the variables are numerical, then we can compute the min/max of the domain.
             if np.all([np.issubdtype(self.X[:, ix].dtype, np.number) for ix in range(self.X.shape[1])]):
@@ -265,6 +273,7 @@ class FitRuleBaseReg(Problem):
         nVar = len(varbound)
         self.single_gen_size = nVar
 
+        # TODO: think what to do with this, idk if it's necessary
         """ self.single_gen_size = (n_ants * n_rules) + (n_ants * n_rules) + (n_rules) 
         if optimize_lv:
             n = 4 if fuzzy_set_type == 'trapezoidal' else 3
@@ -333,19 +342,53 @@ class FitRuleBaseReg(Problem):
 
     # TODO: optimize_lv = True case
     def _construct_ruleBase(self, x: np.ndarray, fuzzy_type: fs.FUZZY_SETS=None, optimize_lv: bool=False):
+        if optimize_lv:
+            fourth_pointer = 2 * self.n_ants * self.n_rules + (self.n_ants + 1) * self.n_lv * 3
+        else:
+            fourth_pointer = 2 * self.n_ants * self.n_rules
+
         rules = []
-        fourth_pointer = 2 * self.n_ants * self.n_rules
 
         for i in range(self.n_rules):
             first_pointer = i * self.n_ants
             second_pointer = first_pointer + (self.n_ants * self.n_rules)
 
-            chosen_antecedents = x[first_pointer : first_pointer + self.n_ants]
-            ants_lvs_used = x[second_pointer : second_pointer + self.n_ants]
+            # TODO: idk what to do with this so it stays commented for now, idk what's the point
+            # chosen_antecedents_idx = x[first_pointer : first_pointer + self.n_ants].astype(bool)
+            # chosen_antecedents = self.antecedents[chosen_antecedents_idx]
 
+            ants_lvs_used = x[second_pointer : second_pointer + self.n_ants]
             cons_lv_used = x[fourth_pointer + i]
 
             rules.append(RuleSimple(ants_lvs_used, cons_lv_used))
+        
+        if optimize_lv:
+            # hardcoded for the example to work
+            n = 3 # TODO: generalize for trapezoidal, triangular...
+            linguistic_variables = []
+
+            for i in range(self.n_ants + 1):
+                partitions = []
+                third_pointer = 2 * self.n_ants * self.n_rules + i * self.n_lv * n
+
+                for j in range(self.n_lv):
+                    params_start_pointer = third_pointer + j * n
+                    # TODO: use self.min_bounds and self.max_bounds to create the partitions
+                    partition_params = x[params_start_pointer : params_start_pointer + n]
+                    partitions.append(TriangularFS(FitRuleBaseReg.vl_names[n][j], partition_params, [0.0, 0.0])) 
+
+                linguistic_variables.append(partitions)
+            
+            antecedent_names = [ant.name for ant in self.antecedents] 
+            consequent_name = self.consequent.name
+
+            antecedents = []
+            for i, partitions in enumerate(linguistic_variables[:-1]):
+                antecedents.append(FuzzyVariable(antecedent_names[i], partitions))
+
+            consequent = FuzzyVariable(consequent_name, linguistic_variables[-1])
+
+            return RuleBaseRegT1(antecedents, rules, consequent)
 
         return RuleBaseRegT1(self.antecedents, rules, self.consequent)
 
@@ -395,6 +438,10 @@ class FitRuleBaseReg(Problem):
         '''
         if precomputed_truth is None:
             precomputed_truth = rules.compute_antecedents_memberships(ruleBase.antecedents, X)
+
+        # TODO: fitness function for regression
+        y_predict = ruleBase.inference(X)
+        error(y_predict, y)
 
         ev_object = evr.evalRuleBase(ruleBase, X, y, precomputed_truth=precomputed_truth)
         ev_object.add_full_evaluation()
