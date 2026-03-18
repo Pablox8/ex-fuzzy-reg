@@ -193,7 +193,8 @@ class RuleSimpleTSK:
     
     def inference(self, x: np.ndarray) -> np.ndarray:
         return self.consequent.compute_consequent(x)
-
+    
+    
 
 class RuleBaseRegTSK:
     def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimpleTSK], tnorm = np.min) -> None:
@@ -249,6 +250,47 @@ class RuleBaseRegTSK:
         return output
 
 
-    # TODO: print_rules 
-    def print_rules(self) -> None:
-        pass
+    def print_rules(self, return_rules:bool=False) -> None:
+        '''
+        Print the rules from the rule base.
+
+        :param return_rules: if True, the rules are returned as a string.
+        '''
+        all_rules = ''
+        for ix, rule in enumerate(self.rules):
+            str_rule = generate_tsk_rule_string(rule, self.antecedents)
+            
+            all_rules += str_rule + '\n'
+
+        if not return_rules:
+            print(all_rules)
+        else:
+            return all_rules
+
+ 
+def generate_tsk_rule_string(rule: RuleSimpleTSK, antecedents: list) -> str:
+    initiated = False
+    str_rule = 'IF '
+
+    for jx, antecedent in enumerate(antecedents):
+        keys = antecedent.linguistic_variable_names()
+
+        if antecedents[jx] != -1:
+            if not initiated:
+                initiated = True
+            else:
+                str_rule += ' AND '
+            
+            str_rule += str(antecedent.name) + ' IS ' + str(keys[rule.antecedents[jx]])
+        
+    str_rule += ' THEN y = '
+    for i, param in enumerate(rule.consequent.params):
+        if i == 0:
+            str_rule += str(param) + ' + '
+        elif i == len(rule.consequent.params)-1:
+            str_rule += str(param) + '*' + str(antecedents[i-1].name)
+        else:
+            str_rule += str(param) + '*' + str(antecedents[i-1].name) + ' + '
+    
+    return str_rule
+
