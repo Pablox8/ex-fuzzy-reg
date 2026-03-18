@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import matthews_corrcoef
+from sklearn.metrics import matthews_corrcoef, mean_squared_error
 from sklearn.base import BaseEstimator, RegressorMixin
 from multiprocessing.pool import ThreadPool
 from pymoo.core.problem import Problem
@@ -70,14 +70,502 @@ except ImportError:
     import ex_fuzzy_reg.rules as rules_reg
 
 
+class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
+    '''
+    Class that is used as a classifier for a fuzzy rule based system. Supports precomputed and optimization of the linguistic variables.
+    '''
+
+    def __init__(self,  n_rules: int = 30, n_ants: int = 4, fuzzy_type: fs.FUZZY_SETS = fs.FUZZY_SETS.t1, fuzzy_set_type: str='trapezoidal', tolerance: float = 0.0,
+                 n_linguistic_variables: int = 3, verbose=False, antecedents: list[fv.FuzzyVariable] = None, consequent: fv.FuzzyVariable = None, categorical_mask: np.array=None,
+                 domain: list = None, precomputed_rules: RuleBaseRegT1=None, runner: int=1, allow_unknown:bool=False, backend: str='pymoo') -> None:
+        '''
+        Inits the optimizer with the corresponding parameters.
+
+        :param nRules: number of rules to optimize.
+        :param nAnts: max number of antecedents to use.
+        :param fuzzy type: FUZZY_SET enum type in fuzzy_sets module. The kind of fuzzy set used.
+        :param tolerance: tolerance for the dominance score of the rules.
+        :param n_linguist_variables: number of linguistic variables per antecedent.
+        :param verbose: if True, prints the progress of the optimization.
+        :param linguistic_variables: list of fuzzyVariables type. If None (default) the optimization process will init+optimize them.
+        :param domain: list of the limits for each variable. If None (default) the classifier will compute them empirically.
+        :param n_class: names of the classes in the problem. If None (default) the classifier will compute it empirically.
+        :param precomputed_rules: MasterRuleBase object. If not None, the classifier will use the rules in the object and ignore the conflicting parameters.
+        :param runner: number of threads to use. If None (default) the classifier will use 1 thread.
+        :param ds_mode: mode for the dominance score. 0: normal dominance score, 1: rules without weights, 2: weights optimized for each rule based on the data.
+        :param allow_unknown: if True, the classifier will allow the unknown class in the classification process. (Which would be a -1 value)
+        :param backend: evolutionary backend to use. Options: 'pymoo' (default, CPU) or 'evox' (GPU-accelerated). Install with: pip install ex-fuzzy[evox]
+        '''
+        if precomputed_rules is not None:
+            self.n_rules = len(precomputed_rules.get_rules())
+            self.n_ants = len(precomputed_rules.get_rules()[0].antecedents)
+            self.rule_base = precomputed_rules
+        else:
+            self.n_rules = n_rules
+            self.n_ants = n_ants
+            self.categorical_mask = categorical_mask
+
+        self.custom_loss = None
+        self.verbose = verbose
+        self.tolerance = tolerance
+        self.allow_unknown = allow_unknown
+        
+        # Initialize evolutionary backend
+        try:
+            self.backend = ev_backends.get_backend(backend)
+            if verbose:
+                print(f"Using evolutionary backend: {self.backend.name()}")
+        except ValueError as e:
+            if verbose:
+                print(f"Warning: {e}. Falling back to pymoo backend.")
+            self.backend = ev_backends.get_backend('pymoo')
+
+        if runner > 1 and StarmapParallelization is not None:
+            pool = ThreadPool(runner)
+            self.thread_runner = StarmapParallelization(pool.starmap)
+        else:
+            if runner > 1 and StarmapParallelization is None and verbose:
+                print("Warning: Parallelization not available with this pymoo version. Running single-threaded.")
+            self.thread_runner = None
+        
+        if antecedents is not None:
+            self.antecedents = antecedents
+            self.n_linguistic_variables = len(self.antecedents[0].linguistic_variables)
+            self.domain = None
+            self.fuzzy_type = self.antecedents[0].fuzzy_type()
+            self.fuzzy_set_type = self.antecedents[0].linguistic_variables[0].shape
+
+            if self.n_ants > len(antecedents):
+                self.n_ants = len(antecedents)
+                if verbose:
+                    print('Warning: The number of antecedents is higher than the number of variables. Setting n_ants to the number of linguistic variables. (' + str(len(linguistic_variables)) + ')')
+        else:
+            self.antecedents = None
+            self.fuzzy_type = fuzzy_type
+            self.n_linguistic_variables = n_linguistic_variables
+            self.domain = domain
+            self.fuzzy_set_type = fuzzy_set_type
+        
+        self.consequent = consequent
+        
+        # TODO: allow user to set alpha and beta
+        self.alpha_ = 0.0
+        self.beta_ = 0.0
+
+
+    def customized_loss(self, loss_function):
+        '''
+        Function to customize the loss function used for the optimization.
+
+        :param loss_function: function that takes as input the true labels and the predicted labels and returns a float.
+        :return: None
+        '''
+        self.custom_loss = loss_function
+
+
+    def fit(self, X: np.array, y: np.array, n_gen:int=70, pop_size:int=30,
+            checkpoints:int=0, candidate_rules: RuleBaseRegT1=None, initial_rules: RuleBaseRegT1=None, random_state:int=33,
+            var_prob:float=0.3, sbx_eta:float=3.0, mutation_eta:float=7.0, tournament_size:int=3, bootstrap_size:int=1000, checkpoint_path:str='',
+            p_value_compute:bool=False, checkpoint_callback: Callable[[int, RuleBaseRegT1], None] = None) -> None:
+        '''
+        Fits a fuzzy rule based classifier using a genetic algorithm to the given data.
+
+        :param X: numpy array samples x features
+        :param y: labels. integer array samples (x 1)
+        :param n_gen: integer. Number of generations to run the genetic algorithm.
+        :param pop_size: integer. Population size for each gneration.
+        :param checkpoints: integer. Number of checkpoints to save the best rulebase found so far.
+        :param candidate_rules: if these rules exist, the optimization process will choose the best rules from this set. If None (default) the rules will be generated from scratch.
+        :param initial_rules: if these rules exist, the optimization process will start from this set. If None (default) the rules will be generated from scratch.
+        :param random_state: integer. Random seed for the optimization process.
+        :param var_prob: float. Probability of crossover for the genetic algorithm.
+        :param sbx_eta: float. Eta parameter for the SBX crossover.
+        :param checkpoint_path: string. Path to save the checkpoints. If None (default) the checkpoints will be saved in the current directory.
+        :param mutation_eta: float. Eta parameter for the polynomial mutation.
+        :param tournament_size: integer. Size of the tournament for the genetic algorithm.
+        :param checkpoint_callback: function. Callback function that get executed at each checkpoint ('checkpoints' must be greater than 0), its arguments are the generation number and the rule_base of the checkpoint.
+        :return: None. The classifier is fitted to the data.
+        '''
+
+        if isinstance(X, pd.DataFrame):
+            lvs_names = list(X.columns)
+            X = X.values
+        else:
+            lvs_names = [str(ix) for ix in range(X.shape[1])]
+            
+        if isinstance(np.array(y)[0], str):
+            y = np.array([self.classes_names.index(str(aux)) for aux in y])
+            
+        if candidate_rules is None:
+            if initial_rules is not None:
+                self.fuzzy_type = initial_rules.fuzzy_type()
+                self.n_linguistic_variables = len(initial_rules[0].linguistic_variables)
+                self.domain = [fv.domain() for fv in initial_rules[0].antecedents]
+                self.n_rules = len(initial_rules.get_rules())
+                self.n_ants = len(initial_rules.get_rules()[0].antecedents)
+                # Use linguistic variables from the initial rules (don't optimize memberships)
+                if self.antecedents is None:
+                    self.antecedents = initial_rules[0].antecedents
+                if self.consequent is None:
+                    self.consequent = initial_rules[0].consequent
+
+            if self.antecedents is None:
+                if self.n_ants > X.shape[1]:
+                    self.n_ants = X.shape[1]
+                    if self.verbose:
+                        print('Warning: The number of antecedents is higher than the number of variables. Setting n_ants to the number of variables. (' + str(X.shape[1]) + ')') 
+
+                # If Fuzzy variables need to be optimized.
+                problem = FitRuleBaseReg(X, y, n_rules=self.n_rules, n_ants=self.n_ants, tolerance=self.tolerance, 
+                                    n_linguistic_variables=self.n_linguistic_variables, fuzzy_type=self.fuzzy_type, fuzzy_set_type=self.fuzzy_set_type, domain=self.domain, thread_runner=self.thread_runner,
+                                    alpha=self.alpha_, beta=self.beta_, categorical_mask=self.categorical_mask,
+                                    backend_name=self.backend.name(), var_names=lvs_names)
+            else:
+                # If Fuzzy variables are already precomputed.
+                problem = FitRuleBaseReg(X, y, n_rules=self.n_rules, n_ants=self.n_ants, 
+                                    antecedents=self.antecedents, consequent=self.consequent, domain=self.domain, tolerance=self.tolerance, thread_runner=self.thread_runner,
+                                    alpha=self.alpha_, beta=self.beta_,
+                                    backend_name=self.backend.name(), var_names=lvs_names)
+        else:
+            self.fuzzy_type = candidate_rules.fuzzy_type()
+            self.n_linguistic_variables = candidate_rules.n_linguistic_variables()
+            problem = ExploreRuleBases(X, y, n_classes=len(np.unique(y)), candidate_rules=candidate_rules, thread_runner=self.thread_runner, nRules=self.n_rules)
+
+        if self.custom_loss is not None:
+            problem.fitness_func = self.custom_loss
+
+        # Prepare initial population
+        if initial_rules is None:
+            rules_gene = None  # Will use default random sampling
+        else:
+            rules_gene = problem.encode_rulebase(initial_rules, self.antecedents is None)
+            rules_gene = (np.ones((pop_size, len(rules_gene))) * rules_gene).astype(int)
+
+        # TODO: checkpoints?
+        # Use backend for optimization
+        if checkpoints > 0:
+            # Checkpoint mode - delegate to backend if supported
+            if self.backend.name() == 'pymoo':
+                # Define checkpoint handler
+                def handle_checkpoint(gen: int, best_individual: np.array):
+                    rule_base = problem._construct_ruleBase(best_individual, self.fuzzy_type)
+                    eval_performance = evr.evalRuleBase(rule_base, np.array(X), y)
+                    eval_performance.add_full_evaluation()
+                    rule_base.purge_rules(self.tolerance)
+                    rule_base.rename_cons(self.classes_names)
+                    checkpoint_rules = rule_base.print_rules(True, bootstrap_results=True)
+                    
+                    if checkpoint_callback is None:
+                        with open(os.path.join(checkpoint_path, "checkpoint_" + str(gen)), "w") as f:
+                            f.write(checkpoint_rules)
+                    else:
+                        checkpoint_callback(gen, rule_base)
+                
+                # Call backend's checkpoint optimization
+                result = self.backend.optimize_with_checkpoints(
+                    problem=problem,
+                    n_gen=n_gen,
+                    pop_size=pop_size,
+                    random_state=random_state,
+                    verbose=self.verbose,
+                    checkpoint_freq=checkpoints,
+                    checkpoint_callback=handle_checkpoint,
+                    var_prob=var_prob,
+                    sbx_eta=sbx_eta,
+                    mutation_eta=mutation_eta,
+                    tournament_size=tournament_size,
+                    sampling=rules_gene
+                )
+                
+                best_individual = result['X']
+                self.performance = 1 - result['F']
+            else:
+                # EvoX or other backends: checkpoints not supported
+                if self.verbose:
+                    print(f"Warning: Checkpoints are not yet supported with {self.backend.name()} backend. Running without checkpoints.")
+                result = self.backend.optimize(
+                    problem=problem,
+                    n_gen=n_gen,
+                    pop_size=pop_size,
+                    random_state=random_state,
+                    verbose=self.verbose,
+                    var_prob=var_prob,
+                    sbx_eta=sbx_eta,
+                    mutation_eta=mutation_eta,
+                    tournament_size=tournament_size,
+                    sampling=rules_gene
+                )
+                
+                best_individual = result['X']
+                self.performance = 1 - result['F']
+        else:
+            # Normal optimization without checkpoints
+            result = self.backend.optimize(
+                problem=problem,
+                n_gen=n_gen,
+                pop_size=pop_size,
+                random_state=random_state,
+                verbose=self.verbose,
+                var_prob=var_prob,
+                sbx_eta=sbx_eta,
+                mutation_eta=mutation_eta,
+                tournament_size=tournament_size,
+                sampling=rules_gene
+            )
+            
+            best_individual = result['X']
+            self.performance = 1 - result['F']
+
+        try:
+            self.var_names = list(X.columns)
+            self.X = X.values
+        except AttributeError:
+            self.X = X
+            self.var_names = [str(ix) for ix in range(X.shape[1])]
+
+        self.rule_base = problem._construct_ruleBase(
+        best_individual, self.fuzzy_type)
+        self.lvs = self.rule_base.rule_bases[0].antecedents if self.lvs is None else self.lvs
+
+        self.eval_performance = evr.evalRuleBase(
+        self.rule_base, np.array(X), y)
+        self.eval_performance.add_full_evaluation()
+        self.rule_base.purge_rules(self.tolerance)
+        self.eval_performance.add_full_evaluation() # After purging the bad rules we update the metrics.
+        
+        if p_value_compute:
+            self.p_value_validation(bootstrap_size)
+
+        self.rule_base.rename_cons(self.classes_names)
+        if self.lvs is None:
+            self.rename_fuzzy_variables()
+            for ix, lv in enumerate(self.rule_base.rule_bases[0].antecedents):
+                lv.name = lvs_names[ix]
+        
+    
+    def print_rule_bootstrap_results(self) -> None:
+        '''
+        Prints the bootstrap results for each rule.
+        '''
+        self.rule_base.print_rule_bootstrap_results()
+    
+
+
+    def p_value_validation(self, bootstrap_size:int=100):
+        '''
+        Computes the permutation and bootstrapping p-values for the classifier and its rules.
+
+        :param bootstrap_size: integer. Number of bootstraps samples to use.
+        '''
+        self.p_value_class_structure, self.p_value_feature_coalitions = self.eval_performance.p_permutation_classifier_validation()
+        
+        self.eval_performance.p_bootstrapping_rules_validation(bootstrap_size)
+        
+
+    def load_rule_base(self, rule_base: RuleBaseRegT1) -> None:
+        '''
+        Loads a master rule base to be used in the prediction process.
+
+        :param rule_base: ruleBase object.
+        :return: None
+        '''
+        self.rule_base = rule_base
+        self.n_rules = len(rule_base.get_rules())
+        self.n_ants = len(rule_base.get_rules()[0].antecedents)
+        
+    
+    def explainable_predict(self, X: np.array, out_class_names=False) -> np.array:
+        '''
+        Returns the predicted class for each sample.
+        '''
+        return self.rule_base.explainable_predict(X, out_class_names=out_class_names)
+
+
+    def forward(self, X: np.array, out_class_names=False) -> np.array:
+        '''
+
+        Returns the predicted class for each sample.
+
+        :param X: np array samples x features.
+        :param out_class_names: if True, the output will be the class names instead of the class index.
+        :return: np array samples (x 1) with the predicted class.
+        '''
+        try:
+            X = X.values  # If X was a pandas dataframe
+        except AttributeError:
+            pass
+        
+        return self.rule_base.winning_rule_predict(X, out_class_names=out_class_names)
+        
+
+    def predict(self, X: np.array, out_class_names=False) -> np.array:
+        '''
+        Returns the predicted class for each sample.
+
+        :param X: np array samples x features.
+        :param out_class_names: if True, the output will be the class names instead of the class index.
+        :return: np array samples (x 1) with the predicted class.
+        '''
+        return self.forward(X, out_class_names=out_class_names)
+    
+
+    def predict_proba_rules(self, X: np.array, truth_degrees:bool=True) -> np.array:
+        '''
+        Returns the predicted class probabilities for each sample.
+
+        :param X: np array samples x features.
+        :param truth_degrees: if True, the output will be the truth degrees of the rules. If false, will return the association degrees i.e. the truth degree multiplied by the weights/dominance of the rules. (depending on the inference mode chosen)
+        :return: np array samples x classes with the predicted class probabilities.
+        '''
+        try:
+            X = X.values  # If X was a pandas dataframe
+        except AttributeError:
+            pass
+        
+        if truth_degrees:
+            return self.rule_base.compute_firing_strenghts(X)
+        else:
+            return self.rule_base.compute_association_degrees(X)
+
+
+    def predict_membership_class(self, X: np.array) -> np.array:
+        '''
+        Returns the predicted class memberships for each sample.
+
+        :param X: np array samples x features.
+        :return: np array samples x classes with the predicted class probabilities.
+        '''
+        try:
+            X = X.values  # If X was a pandas dataframe
+        except AttributeError:
+            pass
+
+        rule_predict_proba = self.rule_base.compute_association_degrees(X)
+        rule_consequents = self.rule_base.get_consequents()
+
+        res = np.zeros((X.shape[0], self.nclasses_))
+        for jx in range(rule_predict_proba.shape[1]):
+            consequent = rule_consequents[jx]
+            res[:, consequent] = np.maximum(res[:, consequent], rule_predict_proba[:, jx]) 
+            
+        return res
+    
+
+    def predict_proba(self, X:np.array) -> np.array:
+        '''
+        Returns the predicted class probabilities for each sample.
+
+        :param X: np array samples x features.
+        :return: np array samples x classes with the predicted class probabilities.
+        '''
+        beliefs = self.predict_membership_class(X)
+
+        # Normalize beliefs to sum to 1; handle zero-sum cases with uniform distribution
+        row_sums = np.sum(beliefs, axis=1, keepdims=True)
+        zero_mask = row_sums == 0
+        row_sums[zero_mask] = 1  # Avoid division by zero
+        beliefs = beliefs / row_sums
+        # For samples with no rule activation, assign uniform probability
+        if np.any(zero_mask):
+            beliefs[zero_mask.flatten()] = 1.0 / beliefs.shape[1]
+
+        return beliefs
+
+
+    def print_rules(self, return_rules:bool=False, bootstrap_results:bool=False) -> None:
+        '''
+        Print the rules contained in the fitted rulebase.
+        '''
+        return self.rule_base.print_rules(return_rules, bootstrap_results)
+
+
+    def plot_fuzzy_variables(self) -> None:
+        '''
+        Plot the fuzzy partitions in each fuzzy variable.
+        '''
+        fuzzy_variables = self.rule_base.rule_bases[0].antecedents
+
+        for ix, fv in enumerate(fuzzy_variables):
+            vis_rules.plot_fuzzy_variable(fv)
+
+
+    def rename_fuzzy_variables(self) -> None:
+        '''
+        Renames the linguist labels so that high, low and so on are consistent. It does so usually after an optimization process.
+
+        :return: None. Names are sorted accorded to the central point of the fuzzy memberships.
+        '''
+
+        for ix in range(len(self.rule_base)):
+            fuzzy_variables = self.rule_base.rule_bases[ix].antecedents
+            for jx, fv in enumerate(fuzzy_variables):
+                if fv[0].shape() != 'categorical':
+                    new_order_values = []
+                    possible_names = FitRuleBase.vl_names[self.n_linguistic_variables[jx]]
+
+                    for zx, fuzzy_set in enumerate(fv.linguistic_variables):
+                        studied_fz = fuzzy_set.type()
+                        
+                        if studied_fz == fs.FUZZY_SETS.temporal:
+                            studied_fz = fuzzy_set.inside_type()
+
+                        if studied_fz == fs.FUZZY_SETS.t1:
+                            f1 = np.mean(
+                                fuzzy_set.membership_parameters[0] + fuzzy_set.membership_parameters[1])
+                        elif (studied_fz == fs.FUZZY_SETS.t2):
+                            f1 = np.mean(
+                                fuzzy_set.secondMF_upper[0] + fuzzy_set.secondMF_upper[1])
+                        elif studied_fz == fs.FUZZY_SETS.gt2:
+                            sec_memberships = fuzzy_set.secondary_memberships.values()
+                            f1 = float(list(fuzzy_set.secondary_memberships.keys())[np.argmax(
+                                [fzm.membership_parameters[2] for ix, fzm in enumerate(sec_memberships)])])
+
+                        new_order_values.append(f1)
+
+                    new_order = np.argsort(np.array(new_order_values))
+                    fuzzy_sets_vl = fv.linguistic_variables
+
+                    for jx, x in enumerate(new_order):
+                        fuzzy_sets_vl[x].name = possible_names[jx]
+
+
+    def get_rulebase(self) -> list[np.array]:
+        '''
+        Get the rulebase obtained after fitting the classifier to the data.
+
+        :return: a matrix format for the rulebase.
+        '''
+        return self.rule_base.get_rulebase_matrix()
+    
+
+    def reparametrice_loss(self, alpha:float, beta:float) -> None:
+        '''
+        Changes the parameters in the loss function. 
+
+        :note: Does not check for convexity preservation. The user can play with these parameters as it wills.
+        :param alpha: controls the MCC term.
+        :param beta: controls the average rule size loss.
+        '''
+        self.alpha_ = alpha
+        self.beta_ = beta
+
+
+    def __call__(self, X:np.array) -> np.array:
+        '''
+        Returns the predicted class for each sample.
+
+        :param X: np array samples x features.
+        :return: np array samples (x 1) with the predicted class.
+        '''
+        return self.predict(X)
+
+
 class FitRuleBaseReg(Problem):
     '''
     Class to model as pymoo problem the fitting of a rulebase for a classification problem using Evolutionary strategies. 
     Supports type 1 and iv fs (iv-type 2)
     '''
-    # TODO: work with categorical variables
-    #def _init_optimize_vl(self, fuzzy_type: fs.FUZZY_SETS, n_linguist_variables: int, domain: list[(float, float)] = None, categorical_variables: list[int] = None, X=None):
-    def _init_optimize_vl(self, fuzzy_type: fs.FUZZY_SETS, n_linguistic_variables: int, domain: list[(float, float)] = None, X=None):
+    def _init_optimize_vl(self, fuzzy_type: fs.FUZZY_SETS, n_linguistic_variables: int, domain: list[(float, float)] = None, categorical_variables: list[int] = None, X=None):
         '''
         Inits the corresponding fields if no linguistic partitions were given.
 
@@ -85,30 +573,33 @@ class FitRuleBaseReg(Problem):
         :param n_linguistic_variables: number of linguistic variables per antecedent.
         :param domain: list of the limits for each variable. If None (default) the classifier will compute them empirically.
         '''
-        """ try:
+        try:
             from . import utils
         except ImportError:
-            import utils """
+            import utils
 
         self.lvs = None
-        self.vl_names = [FitRuleBaseReg.vl_names[n_linguistic_variables[nn]] if n_linguistic_variables[nn] < 6 else list(map(str, np.arange(nn))) for nn in range(len(n_linguistic_variables))]
-
+        #self.vl_names = [FitRuleBaseReg.vl_names[n_linguistic_variables[nn]] if n_linguistic_variables[nn] < 6 else list(map(str, np.arange(nn))) for nn in range(len(n_linguistic_variables))]
+        #self.vl_names = FitRuleBaseReg.vl_names if n_linguistic_variables < 6 else []
+        
         self.fuzzy_type = fuzzy_type
         self.domain = domain
         self._precomputed_truth = None
-        """ self.categorical_mask = categorical_variables
+        self.categorical_mask = categorical_variables
         self.categorical_boolean_mask =  np.array(categorical_variables) > 0 if categorical_variables is not None else None 
-        self.categorical_variables = {}
+
+        # TODO: categorical variables
+        """ self.categorical_variables = {}
         for ix, cat in enumerate(categorical_variables):
             if cat > 0:
-                self.categorical_variables[ix] = utils.construct_crisp_categorical_partition(np.array(X)[:, ix], self.var_names[ix], fuzzy_type) """
+                self.categorical_variables[ix] = utils.construct_crisp_categorical_partition(np.array(X)[:, ix], self.var_names[ix], fuzzy_type)
         
         self.n_lv_possible = []
         for ix in range(len(self.categorical_mask)):
             if self.categorical_mask[ix] > 0:
                 self.n_lv_possible.append(len(self.categorical_variables[ix]))
             else:
-                self.n_lv_possible.append(n_linguistic_variables[ix])
+                self.n_lv_possible.append(n_linguistic_variables[ix]) """
 
 
     def _init_precomputed_vl(self, linguistic_variables: list[fv.FuzzyVariable], X: np.array):
@@ -120,7 +611,7 @@ class FitRuleBaseReg(Problem):
         '''
         self.lvs = linguistic_variables
         self.vl_names = [lv.linguistic_variable_names() for lv in self.lvs]
-        self.n_lv_possible = [len(lv.linguistic_variable_names()) for lv in self.lvs]
+        #self.n_lv_possible = [len(lv.linguistic_variable_names()) for lv in self.lvs]
         self.fuzzy_type = self.lvs[0].fs_type
         self.domain = None
         self._precomputed_truth = rules_reg.compute_antecedents_memberships(linguistic_variables, X)
@@ -136,7 +627,7 @@ class FitRuleBaseReg(Problem):
     ]
 
     def __init__(self, X: np.array, y: np.array, n_rules: int, n_ants: int, thread_runner: Optional[Any]=None,
-                 antecedents: list[fv.FuzzyVariable]=None, consequent: fv.FuzzyVariable=None, n_linguistic_variables: int=3, fuzzy_type=fs.FUZZY_SETS.t1, domain: list=None, tolerance: float=0.01, alpha: float=0.0, beta: float=0.0, optimize_lv: bool=False, fuzzy_set_type: str='trapezoidal', backend_name: str='pymoo', var_names: list=None) -> None:
+                 antecedents: list[fv.FuzzyVariable]=None, consequent: fv.FuzzyVariable=None, n_linguistic_variables: int=3, fuzzy_type=fs.FUZZY_SETS.t1, domain: list=None, categorical_mask: np.array=None, tolerance: float=0.01, alpha: float=0.0, beta: float=0.0, optimize_lv: bool=False, fuzzy_set_type: str='trapezoidal', backend_name: str='pymoo', var_names: list=None) -> None:
         '''
         Constructor method. Initializes the classifier with the number of antecedents, linguist variables and the kind of fuzzy set desired.
 
@@ -159,8 +650,8 @@ class FitRuleBaseReg(Problem):
             backend_name (str, optional): The optimization backend to use. Defaults to 'pymoo'.
             var_names (list[str], optional): List of variable names. Defaults to None, where names are auto-generated or extracted from DataFrame columns.
         '''
-        if optimize_lv:
-            raise NotImplemented
+        """ if optimize_lv:
+            raise NotImplementedError """
 
         if var_names is not None:
             self.var_names = var_names
@@ -178,37 +669,42 @@ class FitRuleBaseReg(Problem):
         self.y = y
         self.n_rules = n_rules
         self.n_ants = n_ants
-        self.n_cons = 1 
-        self.n_lv = n_linguistic_variables
+        # self.n_cons = 1 
+        self.n_linguistic_variables = n_linguistic_variables
         self.domain = domain
+        self.fuzzy_set_type = fuzzy_set_type
 
         self.antecedents = antecedents
         self.consequent = consequent
 
-        if self.antecedents is not None:
+        if categorical_mask is None:
+            self.categorical_mask = np.zeros(X.shape[1])
+        else:
+            self.categorical_mask = categorical_mask
+
+        """ if self.antecedents is not None:
             self.n_lv_possible = [len(antecedent.linguistic_variables) for antecedent in self.antecedents]
             self.lvs = [antecedent.linguistic_variables for antecedent in self.antecedents]
         else:
             self.n_lv_possible = [n_linguistic_variables] * self.X.shape[1]
-            self.lvs = None
+            self.lvs = None """
 
         if antecedents is not None:
             self._init_precomputed_vl(antecedents, X)
         else:
-            n_linguistic_variables = [n_linguistic_variables] * self.X.shape[1]
+            #n_linguistic_variables = [n_linguistic_variables] * self.X.shape[1]
             
             self._init_optimize_vl(
-                fuzzy_type=fuzzy_type, n_linguist_variables=n_linguistic_variables, categorical_variables=categorical_mask, domain=domain, X=X) 
+                fuzzy_type=fuzzy_type, n_linguistic_variables=n_linguistic_variables, categorical_variables=self.categorical_mask, domain=domain, X=X) 
 
-        # TODO: add consequent domain to min_bounds and max_bounds
         if self.domain is None:
             # If all the variables are numerical, then we can compute the min/max of the domain.
             if np.all([np.issubdtype(self.X[:, ix].dtype, np.number) for ix in range(self.X.shape[1])]):
-                self.min_bounds = np.min(self.X, axis=0)
-                self.max_bounds = np.max(self.X, axis=0)
+                self.min_bounds = np.append(np.min(self.X, axis=0), np.min(y))
+                self.max_bounds = np.append(np.max(self.X, axis=0), np.max(y))
             else:
-                self.min_bounds = np.zeros(self.X.shape[1])
-                self.max_bounds = np.zeros(self.X.shape[1])
+                self.min_bounds = np.zeros(self.X.shape[1] + self.y.shape[1])
+                self.max_bounds = np.zeros(self.X.shape[1] + self.y.shape[1])
 
                 for ix in range(self.X.shape[1]):
                     if np.issubdtype(self.X[:, ix].dtype, np.number):
@@ -217,6 +713,9 @@ class FitRuleBaseReg(Problem):
                     else:
                         self.min_bounds[ix] = 0
                         self.max_bounds[ix] = len(np.unique(self.X[:, ix][~pd.isna(self.X[:, ix])]))
+               
+                self.min_bounds[-1] = np.min(y)
+                self.max_bounds[-1] = np.max(y)
         else:
             # Handle different domain formats:
             # - List of tuples/arrays: [(min1, max1), (min2, max2), ...] from initial_rules
@@ -233,7 +732,8 @@ class FitRuleBaseReg(Problem):
 
         self.consequent_referencial = np.linspace(np.min(y), np.max(y), 100) 
 
-        possible_antecedent_bounds = np.array([[0, self.X.shape[1] - 1]] * self.n_ants * self.n_rules)
+        # TODO: think what to do with this, idk if it's necessary
+        """ possible_antecedent_bounds = np.array([[0, self.X.shape[1] - 1]] * self.n_ants * self.n_rules)
         vl_antecedent_bounds = np.array([[ -1, self.n_lv_possible[ax] - 1] for ax in range(self.n_ants)] * self.n_rules)
         antecedent_bounds = np.concatenate((possible_antecedent_bounds, vl_antecedent_bounds))
 
@@ -271,13 +771,12 @@ class FitRuleBaseReg(Problem):
                 (antecedent_bounds, final_consequent_bounds), axis=0)
 
         nVar = len(varbound)
-        self.single_gen_size = nVar
+        self.single_gen_size = nVar """
 
-        # TODO: think what to do with this, idk if it's necessary
-        """ self.single_gen_size = (n_ants * n_rules) + (n_ants * n_rules) + (n_rules) 
+        self.single_gen_size = (n_ants * n_rules) + (n_ants * n_rules) + (n_rules) 
         if optimize_lv:
             n = 4 if fuzzy_set_type == 'trapezoidal' else 3
-            self.single_gen_size += ((n_ants + 1) * n_linguistic_variables * n)  """
+            self.single_gen_size += ((n_ants + 1) * n_linguistic_variables * n) 
 
         self.alpha_ = alpha
         self.beta_ = beta
@@ -286,7 +785,7 @@ class FitRuleBaseReg(Problem):
         if thread_runner is not None:
             super().__init__(
                 vars=vars,
-                n_var=nVar,
+                n_var=self.single_gen_size,
                 n_obj=1,
                 elementwise=True,
                 vtype=int,
@@ -296,7 +795,7 @@ class FitRuleBaseReg(Problem):
         else:
             super().__init__(
                 vars=vars,
-                n_var=nVar,
+                n_var=self.single_gen_size,
                 n_obj=1,
                 elementwise=True,
                 vtype=int,
@@ -340,10 +839,9 @@ class FitRuleBaseReg(Problem):
         return np.array(x)
 
 
-    # TODO: optimize_lv = True case
     def _construct_ruleBase(self, x: np.ndarray, fuzzy_type: fs.FUZZY_SETS=None, optimize_lv: bool=False):
         if optimize_lv:
-            fourth_pointer = 2 * self.n_ants * self.n_rules + (self.n_ants + 1) * self.n_lv * 3
+            fourth_pointer = 2 * self.n_ants * self.n_rules + (self.n_ants + 1) * self.n_linguistic_variables * 3
         else:
             fourth_pointer = 2 * self.n_ants * self.n_rules
 
@@ -363,19 +861,18 @@ class FitRuleBaseReg(Problem):
             rules.append(RuleSimple(ants_lvs_used, cons_lv_used))
         
         if optimize_lv:
-            # hardcoded for the example to work
-            n = 3 # TODO: generalize for trapezoidal, triangular...
+            n = 4 if self.fuzzy_set_type == 'trapezoidal' else 3
             linguistic_variables = []
 
             for i in range(self.n_ants + 1):
                 partitions = []
-                third_pointer = 2 * self.n_ants * self.n_rules + i * self.n_lv * n
+                third_pointer = 2 * self.n_ants * self.n_rules + i * self.n_linguistic_variables * n
 
-                for j in range(self.n_lv):
+                for j in range(self.n_linguistic_variables):
                     params_start_pointer = third_pointer + j * n
-                    # TODO: use self.min_bounds and self.max_bounds to create the partitions
+                    domain = [self.min_bounds[i], self.max_bounds[i]]
                     partition_params = x[params_start_pointer : params_start_pointer + n]
-                    partitions.append(TriangularFS(FitRuleBaseReg.vl_names[n][j], partition_params, [0.0, 0.0])) 
+                    partitions.append(TriangularFS(FitRuleBaseReg.vl_names[n][j], partition_params, domain)) 
 
                 linguistic_variables.append(partitions)
             
@@ -437,12 +934,18 @@ class FitRuleBaseReg(Problem):
         :return: float. Fitness value.
         '''
         if precomputed_truth is None:
-            precomputed_truth = rules.compute_antecedents_memberships(ruleBase.antecedents, X)
+            precomputed_truth = rules_reg.compute_antecedents_memberships(linguistic_variables, X)
 
         # TODO: fitness function for regression
-        y_predict = ruleBase.inference(X)
-        error(y_predict, y)
+        '''
+        this should be the classification_eval method for evalRuleBase object
+        other metrics can be used, this is provisional
 
+        y_pred = ruleBase.inference(X)
+        mean_squared_error(y, y_pred) 
+        '''
+
+        # TODO: evalRuleBaseReg ¿?
         ev_object = evr.evalRuleBase(ruleBase, X, y, precomputed_truth=precomputed_truth)
         ev_object.add_full_evaluation()
         ruleBase.purge_rules(tolerance)
