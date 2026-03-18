@@ -8,16 +8,18 @@ from ex_fuzzy_reg import rules_reg_utils as utils
 
 
 class MamdamiFIS(RegressorMixin):
-    def __init__(self, fuzzy_type: fs.FUZZY_SETS, linguistic_variables: list[fv.FuzzyVariable]=None, n_rules: int=30, tolerance: float=0.0) -> None:
+    def __init__(self, fuzzy_type: fs.FUZZY_SETS, linguistic_variables: list[fv.FuzzyVariable]=None, n_rules: int=30, n_labels: int=3, tolerance: float=0.0) -> None:
         self.fuzzy_type = fuzzy_type
         self.linguistic_variables = linguistic_variables
+        self.n_labels = n_labels
 
     
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
         data = np.hstack((X, y))
 
         if not self.linguistic_variables:
-            self.linguistic_variables = utils.generate_partitions(data) # TODO: generalize with more parameters (n_labels, label_names)
+            # TODO: extract label_names and fuzzy variable names from X and y
+            self.linguistic_variables = utils.generate_triangular_partitions(data, self.n_labels) 
       
         self.rule_base = utils.generate_rules(data, self.linguistic_variables)
 
@@ -26,7 +28,7 @@ class MamdamiFIS(RegressorMixin):
         y_pred = self.rule_base.inference(X)
         return y_pred
 
-
+    # TODO: load model from json
     def export_to_json(self, path: str = "./model.json") -> None:
         linguistic_vars_str = {}
 

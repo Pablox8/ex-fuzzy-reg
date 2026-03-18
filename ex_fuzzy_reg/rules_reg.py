@@ -6,7 +6,6 @@ from ex_fuzzy_reg import fuzzy_variable as fv
 
 
 # modifiers_names = {0.5: 'Somewhat', 1.0: '', 1.3: 'A little', 1.7: 'Slightly', 2.0: 'Very', 3.0: 'Extremely', 4.0: 'Very very'}
-# TODO: MasterRuleBaseReg ¿?
 
 def compute_antecedents_memberships(antecedents: list[fv.FuzzyVariable], x: np.ndarray) -> np.ndarray:
     """
