@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+from sklearn.metrics import root_mean_squared_error
 
 # Add the library path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -48,6 +49,18 @@ def main():
     print(len(x))
     print()
     rb_d.print_rules()
+
+    for ant in rb_d.antecedents:
+        print(ant.name)
+        for lv in ant.linguistic_variables:
+            print(lv.membership_parameters)
+        print()
+
+    X, y = np.array([[7, 5, 7]]), np.array([2.5]) 
+    y_pred = rb_d.inference(X)
+
+    NRMSE = root_mean_squared_error(y, y_pred) 
+    print(1 - NRMSE)
 
 
 if __name__ == '__main__':

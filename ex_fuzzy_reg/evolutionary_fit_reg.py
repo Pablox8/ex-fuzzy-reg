@@ -611,7 +611,6 @@ class FitRuleBaseReg(Problem):
         '''
         self.lvs = linguistic_variables
         self.vl_names = [lv.linguistic_variable_names() for lv in self.lvs]
-        #self.n_lv_possible = [len(lv.linguistic_variable_names()) for lv in self.lvs]
         self.fuzzy_type = self.lvs[0].fs_type
         self.domain = None
         self._precomputed_truth = rules_reg.compute_antecedents_memberships(linguistic_variables, X)
@@ -626,6 +625,7 @@ class FitRuleBaseReg(Problem):
         ['Very Low', 'Low', 'Medium', 'High', 'Very High']
     ]
 
+    # TODO: this will work assuming every fuzzy variable has the same number of linguistic variables.
     def __init__(self, X: np.array, y: np.array, n_rules: int, n_ants: int, thread_runner: Optional[Any]=None,
                  antecedents: list[fv.FuzzyVariable]=None, consequent: fv.FuzzyVariable=None, n_linguistic_variables: int=3, fuzzy_type=fs.FUZZY_SETS.t1, domain: list=None, categorical_mask: np.array=None, tolerance: float=0.01, alpha: float=0.0, beta: float=0.0, optimize_lv: bool=False, fuzzy_set_type: str='trapezoidal', backend_name: str='pymoo', var_names: list=None) -> None:
         '''
@@ -669,7 +669,6 @@ class FitRuleBaseReg(Problem):
         self.y = y
         self.n_rules = n_rules
         self.n_ants = n_ants
-        # self.n_cons = 1 
         self.n_linguistic_variables = n_linguistic_variables
         self.domain = domain
         self.fuzzy_set_type = fuzzy_set_type
@@ -682,18 +681,9 @@ class FitRuleBaseReg(Problem):
         else:
             self.categorical_mask = categorical_mask
 
-        """ if self.antecedents is not None:
-            self.n_lv_possible = [len(antecedent.linguistic_variables) for antecedent in self.antecedents]
-            self.lvs = [antecedent.linguistic_variables for antecedent in self.antecedents]
-        else:
-            self.n_lv_possible = [n_linguistic_variables] * self.X.shape[1]
-            self.lvs = None """
-
         if antecedents is not None:
             self._init_precomputed_vl(antecedents, X)
         else:
-            #n_linguistic_variables = [n_linguistic_variables] * self.X.shape[1]
-            
             self._init_optimize_vl(
                 fuzzy_type=fuzzy_type, n_linguistic_variables=n_linguistic_variables, categorical_variables=self.categorical_mask, domain=domain, X=X) 
 
@@ -732,46 +722,21 @@ class FitRuleBaseReg(Problem):
 
         self.consequent_referencial = np.linspace(np.min(y), np.max(y), 100) 
 
-        # TODO: think what to do with this, idk if it's necessary
-        """ possible_antecedent_bounds = np.array([[0, self.X.shape[1] - 1]] * self.n_ants * self.n_rules)
-        vl_antecedent_bounds = np.array([[ -1, self.n_lv_possible[ax] - 1] for ax in range(self.n_ants)] * self.n_rules)
-        antecedent_bounds = np.concatenate((possible_antecedent_bounds, vl_antecedent_bounds))
+        feature_idx_bounds = np.array([[0, self.X.shape[1] - 1]] * self.n_ants * self.n_rules)
+        vl_idx_bounds = np.array([[-1, self.n_linguistic_variables - 1]] * self.n_ants * self.n_rules)
+        antecedent_bounds = np.concatenate((feature_idx_bounds, vl_idx_bounds), axis=0)
 
-        vars_antecedent = {ix: Integer(bounds=antecedent_bounds[ix]) for ix in range(len(antecedent_bounds))}
-        aux_counter = len(vars_antecedent)
+        consequent_bounds = np.array([[np.min(self.y), np.max(self.y)]] * self.n_rules)
 
-        if self.lvs is None:
-            self.feature_domain_bounds = np.array([[0, 99] for ix in range(self.X.shape[1])])
-            if self.fuzzy_type == fs.FUZZY_SETS.t1:
-                correct_size = [(self.n_lv_possible[ixx]-1) * 4 + 3 for ixx in range(len(self.n_lv_possible))]
-            elif self.fuzzy_type == fs.FUZZY_SETS.t2:
-                correct_size = [(self.n_lv_possible[ixx]-1) * 6 + 2 for ixx in range(len(self.n_lv_possible))]
-            elif self.fuzzy_type == fs.FUZZY_SETS.gt2:
-                correct_size = [(self.n_lv_possible[ixx]-1) * 6 + 2 for ixx in range(len(self.n_lv_possible))]
-            else:
-                raise ValueError(f"Fuzzy type {self.fuzzy_type} not supported for dynamic membership optimization. "
-                                "Please provide precomputed linguistic_variables.")
-            membership_bounds = np.concatenate(
-                [[self.feature_domain_bounds[ixx]] * correct_size[ixx] for ixx in range(len(self.n_lv_possible))])
+        all_bounds = [antecedent_bounds, consequent_bounds]
 
-            vars_memberships = {
-                aux_counter + ix: Integer(bounds=membership_bounds[ix]) for ix in range(len(membership_bounds))}
-            aux_counter += len(vars_memberships)
+        if optimize_lv:
+            n = 4 if fuzzy_set_type == 'trapezoidal' else 3
+            n_membership_params = (self.n_ants + 1) * n_linguistic_variables * n
+            membership_bounds = np.array([[0, 99]] * n_membership_params)
+            all_bounds.insert(1, membership_bounds)
 
-        final_consequent_bounds = np.array([[np.min(self.y), np.max(self.y)]] * self.n_rules)
-        vars_consequent = {aux_counter + ix: Integer(bounds=final_consequent_bounds[ix]) for ix in range(len(final_consequent_bounds))}
-
-        if self.lvs is None:
-            vars = {key: val for d in [vars_antecedent, vars_memberships, vars_consequent] for key, val in d.items()}
-            varbound = np.concatenate(
-                (antecedent_bounds, membership_bounds, final_consequent_bounds), axis=0)
-        else:
-            vars = {key: val for d in [vars_antecedent, vars_consequent] for key, val in d.items()}
-            varbound = np.concatenate(
-                (antecedent_bounds, final_consequent_bounds), axis=0)
-
-        nVar = len(varbound)
-        self.single_gen_size = nVar """
+        varbound = np.concatenate(all_bounds, axis=0) 
 
         self.single_gen_size = (n_ants * n_rules) + (n_ants * n_rules) + (n_rules) 
         if optimize_lv:
@@ -784,7 +749,7 @@ class FitRuleBaseReg(Problem):
 
         if thread_runner is not None:
             super().__init__(
-                vars=vars,
+                #vars=vars,
                 n_var=self.single_gen_size,
                 n_obj=1,
                 elementwise=True,
@@ -794,7 +759,7 @@ class FitRuleBaseReg(Problem):
                 elementwise_runner=thread_runner)
         else:
             super().__init__(
-                vars=vars,
+                #vars=vars,
                 n_var=self.single_gen_size,
                 n_obj=1,
                 elementwise=True,
@@ -814,7 +779,7 @@ class FitRuleBaseReg(Problem):
 
         for rule in rule_base.rules:
             antecedents_used += list(np.where(np.array(rule.antecedents) == -1, 0, 1))
-            antecedents_lvs_used += rule.antecedents
+            antecedents_lvs_used += list(np.where(np.array(rule.antecedents) == -1, 0, rule.antecedents))
             consequent_lvs_used += [rule.consequent]
 
         if optimize_lv:
@@ -851,14 +816,18 @@ class FitRuleBaseReg(Problem):
             first_pointer = i * self.n_ants
             second_pointer = first_pointer + (self.n_ants * self.n_rules)
 
-            # TODO: idk what to do with this so it stays commented for now, idk what's the point
-            # chosen_antecedents_idx = x[first_pointer : first_pointer + self.n_ants].astype(bool)
-            # chosen_antecedents = self.antecedents[chosen_antecedents_idx]
+            chosen_antecedents_idx = x[first_pointer : first_pointer + self.n_ants].astype(bool)
 
             ants_lvs_used = x[second_pointer : second_pointer + self.n_ants]
+
+            active_ants_lvs = ants_lvs_used[chosen_antecedents_idx]
+            non_active_ants_lvs = ants_lvs_used[~chosen_antecedents_idx]
+            non_active_ants_lvs[:] = -1
+
+            ants_lvs_rule_format = np.concatenate((active_ants_lvs, non_active_ants_lvs)) 
             cons_lv_used = x[fourth_pointer + i]
 
-            rules.append(RuleSimple(ants_lvs_used, cons_lv_used))
+            rules.append(RuleSimple(ants_lvs_rule_format, cons_lv_used))
         
         if optimize_lv:
             n = 4 if self.fuzzy_set_type == 'trapezoidal' else 3

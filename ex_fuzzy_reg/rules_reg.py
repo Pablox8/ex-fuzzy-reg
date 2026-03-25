@@ -137,6 +137,7 @@ class RuleBaseRegT1(RuleBase):
             aggregated_consequents = fs.trapezoidal_union(cut_consequents)
             p_x, p_y = aggregated_consequents
 
+            # TODO: manage all empty cuts case (p_x = p_y = [])
             x_crisp = fs.centroid_defuzzification(p_x, p_y)
             output.append(x_crisp)
         
