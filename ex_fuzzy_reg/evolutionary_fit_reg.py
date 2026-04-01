@@ -34,13 +34,14 @@ import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import matthews_corrcoef, mean_squared_error
+from sklearn.metrics import matthews_corrcoef, root_mean_squared_error
 from sklearn.base import BaseEstimator, RegressorMixin
 from multiprocessing.pool import ThreadPool
 from pymoo.core.problem import Problem
 from pymoo.core.variable import Integer
 
 from ex_fuzzy.rules import RuleSimple
+from ex_fuzzy_reg import evolutionary_backends as ev_backends
 from ex_fuzzy_reg.fuzzy_sets import TriangularFS
 from ex_fuzzy_reg.fuzzy_variable import FuzzyVariable
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
@@ -72,13 +73,14 @@ except ImportError:
 
 class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
     '''
-    Class that is used as a classifier for a fuzzy rule based system. Supports precomputed and optimization of the linguistic variables.
+    Class that is used as a regressor for a fuzzy rule based system. Supports precomputed and optimization of the linguistic variables.
     '''
 
     def __init__(self,  n_rules: int = 30, n_ants: int = 4, fuzzy_type: fs.FUZZY_SETS = fs.FUZZY_SETS.t1, fuzzy_set_type: str='trapezoidal', tolerance: float = 0.0,
                  n_linguistic_variables: int = 3, verbose=False, antecedents: list[fv.FuzzyVariable] = None, consequent: fv.FuzzyVariable = None, categorical_mask: np.array=None,
                  domain: list = None, precomputed_rules: RuleBaseRegT1=None, runner: int=1, allow_unknown:bool=False, backend: str='pymoo') -> None:
         '''
+        # TODO: fix the docs
         Inits the optimizer with the corresponding parameters.
 
         :param nRules: number of rules to optimize.
@@ -138,7 +140,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
             if self.n_ants > len(antecedents):
                 self.n_ants = len(antecedents)
                 if verbose:
-                    print('Warning: The number of antecedents is higher than the number of variables. Setting n_ants to the number of linguistic variables. (' + str(len(linguistic_variables)) + ')')
+                    print('Warning: The number of antecedents is higher than the number of variables. Setting n_ants to the number of linguistic variables. (' + str(len(antecedents)) + ')')
         else:
             self.antecedents = None
             self.fuzzy_type = fuzzy_type
@@ -227,9 +229,10 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
                                     alpha=self.alpha_, beta=self.beta_,
                                     backend_name=self.backend.name(), var_names=lvs_names)
         else:
-            self.fuzzy_type = candidate_rules.fuzzy_type()
-            self.n_linguistic_variables = candidate_rules.n_linguistic_variables()
-            problem = ExploreRuleBases(X, y, n_classes=len(np.unique(y)), candidate_rules=candidate_rules, thread_runner=self.thread_runner, nRules=self.n_rules)
+            pass # TODO: provisional, change later
+            # self.fuzzy_type = candidate_rules.fuzzy_type()
+            # self.n_linguistic_variables = candidate_rules.n_linguistic_variables()
+            # problem = ExploreRuleBases(X, y, n_classes=len(np.unique(y)), candidate_rules=candidate_rules, thread_runner=self.thread_runner, nRules=self.n_rules)
 
         if self.custom_loss is not None:
             problem.fitness_func = self.custom_loss
@@ -243,7 +246,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
 
         # TODO: checkpoints?
         # Use backend for optimization
-        if checkpoints > 0:
+        """ if checkpoints > 0:
             # Checkpoint mode - delegate to backend if supported
             if self.backend.name() == 'pymoo':
                 # Define checkpoint handler
@@ -298,23 +301,24 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
                 
                 best_individual = result['X']
                 self.performance = 1 - result['F']
-        else:
-            # Normal optimization without checkpoints
-            result = self.backend.optimize(
-                problem=problem,
-                n_gen=n_gen,
-                pop_size=pop_size,
-                random_state=random_state,
-                verbose=self.verbose,
-                var_prob=var_prob,
-                sbx_eta=sbx_eta,
-                mutation_eta=mutation_eta,
-                tournament_size=tournament_size,
-                sampling=rules_gene
-            )
-            
-            best_individual = result['X']
-            self.performance = 1 - result['F']
+        else: """
+
+        # Normal optimization without checkpoints
+        result = self.backend.optimize(
+            problem=problem,
+            n_gen=n_gen,
+            pop_size=pop_size,
+            random_state=random_state,
+            verbose=self.verbose,
+            var_prob=var_prob,
+            sbx_eta=sbx_eta,
+            mutation_eta=mutation_eta,
+            tournament_size=tournament_size,
+            sampling=rules_gene
+        )
+        
+        best_individual = result['X']
+        self.performance = 1 - result['F']
 
         try:
             self.var_names = list(X.columns)
@@ -325,23 +329,18 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
 
         self.rule_base = problem._construct_ruleBase(
         best_individual, self.fuzzy_type)
-        self.lvs = self.rule_base.rule_bases[0].antecedents if self.lvs is None else self.lvs
 
-        self.eval_performance = evr.evalRuleBase(
-        self.rule_base, np.array(X), y)
-        self.eval_performance.add_full_evaluation()
-        self.rule_base.purge_rules(self.tolerance)
-        self.eval_performance.add_full_evaluation() # After purging the bad rules we update the metrics.
-        
-        if p_value_compute:
-            self.p_value_validation(bootstrap_size)
+        self.antecedents = self.rule_base.rule_bases[0].antecedents if self.antecedents is None else self.antecedents
 
-        self.rule_base.rename_cons(self.classes_names)
-        if self.lvs is None:
-            self.rename_fuzzy_variables()
-            for ix, lv in enumerate(self.rule_base.rule_bases[0].antecedents):
-                lv.name = lvs_names[ix]
+        #self.eval_performance = evr.evalRuleBase(
+        #self.rule_base, np.array(X), y)
+        #self.eval_performance.add_full_evaluation()
+        #self.rule_base.purge_rules(self.tolerance)
+        #self.eval_performance.add_full_evaluation() # After purging the bad rules we update the metrics.
         
+        """ if p_value_compute:
+            self.p_value_validation(bootstrap_size) """
+
     
     def print_rule_bootstrap_results(self) -> None:
         '''
@@ -349,7 +348,6 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         '''
         self.rule_base.print_rule_bootstrap_results()
     
-
 
     def p_value_validation(self, bootstrap_size:int=100):
         '''
@@ -381,7 +379,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         return self.rule_base.explainable_predict(X, out_class_names=out_class_names)
 
 
-    def forward(self, X: np.array, out_class_names=False) -> np.array:
+    def forward(self, X: np.array) -> np.array:
         '''
 
         Returns the predicted class for each sample.
@@ -395,10 +393,10 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         except AttributeError:
             pass
         
-        return self.rule_base.winning_rule_predict(X, out_class_names=out_class_names)
+        return self.rule_base.inference(X) # ¿?
         
 
-    def predict(self, X: np.array, out_class_names=False) -> np.array:
+    def predict(self, X: np.array) -> np.array:
         '''
         Returns the predicted class for each sample.
 
@@ -406,70 +404,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         :param out_class_names: if True, the output will be the class names instead of the class index.
         :return: np array samples (x 1) with the predicted class.
         '''
-        return self.forward(X, out_class_names=out_class_names)
-    
-
-    def predict_proba_rules(self, X: np.array, truth_degrees:bool=True) -> np.array:
-        '''
-        Returns the predicted class probabilities for each sample.
-
-        :param X: np array samples x features.
-        :param truth_degrees: if True, the output will be the truth degrees of the rules. If false, will return the association degrees i.e. the truth degree multiplied by the weights/dominance of the rules. (depending on the inference mode chosen)
-        :return: np array samples x classes with the predicted class probabilities.
-        '''
-        try:
-            X = X.values  # If X was a pandas dataframe
-        except AttributeError:
-            pass
-        
-        if truth_degrees:
-            return self.rule_base.compute_firing_strenghts(X)
-        else:
-            return self.rule_base.compute_association_degrees(X)
-
-
-    def predict_membership_class(self, X: np.array) -> np.array:
-        '''
-        Returns the predicted class memberships for each sample.
-
-        :param X: np array samples x features.
-        :return: np array samples x classes with the predicted class probabilities.
-        '''
-        try:
-            X = X.values  # If X was a pandas dataframe
-        except AttributeError:
-            pass
-
-        rule_predict_proba = self.rule_base.compute_association_degrees(X)
-        rule_consequents = self.rule_base.get_consequents()
-
-        res = np.zeros((X.shape[0], self.nclasses_))
-        for jx in range(rule_predict_proba.shape[1]):
-            consequent = rule_consequents[jx]
-            res[:, consequent] = np.maximum(res[:, consequent], rule_predict_proba[:, jx]) 
-            
-        return res
-    
-
-    def predict_proba(self, X:np.array) -> np.array:
-        '''
-        Returns the predicted class probabilities for each sample.
-
-        :param X: np array samples x features.
-        :return: np array samples x classes with the predicted class probabilities.
-        '''
-        beliefs = self.predict_membership_class(X)
-
-        # Normalize beliefs to sum to 1; handle zero-sum cases with uniform distribution
-        row_sums = np.sum(beliefs, axis=1, keepdims=True)
-        zero_mask = row_sums == 0
-        row_sums[zero_mask] = 1  # Avoid division by zero
-        beliefs = beliefs / row_sums
-        # For samples with no rule activation, assign uniform probability
-        if np.any(zero_mask):
-            beliefs[zero_mask.flatten()] = 1.0 / beliefs.shape[1]
-
-        return beliefs
+        return self.forward(X)
 
 
     def print_rules(self, return_rules:bool=False, bootstrap_results:bool=False) -> None:
@@ -902,19 +837,25 @@ class FitRuleBaseReg(Problem):
         :param precomputed_truth: np array. If given, it will be used as the truth values for the evaluation.
         :return: float. Fitness value.
         '''
-        if precomputed_truth is None:
-            precomputed_truth = rules_reg.compute_antecedents_memberships(linguistic_variables, X)
 
-        # TODO: fitness function for regression
         '''
         this should be the classification_eval method for evalRuleBase object
         other metrics can be used, this is provisional
-
-        y_pred = ruleBase.inference(X)
-        mean_squared_error(y, y_pred) 
         '''
 
+        for rule in ruleBase.rules:
+            print("ff", rule.antecedents, rule.consequent)
+
+        y_pred = ruleBase.inference(X)
+        # 1 - NRMSE
+        score = 1 - (root_mean_squared_error(y, y_pred) - self.min_bounds[-1]) / (self.max_bounds[-1] - self.min_bounds[-1])
+
+        # TODO: fitness function for regression
         # TODO: evalRuleBaseReg ¿?
+        """ 
+        if precomputed_truth is None:
+            precomputed_truth = rules_reg.compute_antecedents_memberships(linguistic_variables, X)
+        
         ev_object = evr.evalRuleBase(ruleBase, X, y, precomputed_truth=precomputed_truth)
         ev_object.add_full_evaluation()
         ruleBase.purge_rules(tolerance)
@@ -926,7 +867,7 @@ class FitRuleBaseReg(Problem):
 
             score = score_acc + score_rules_size * alpha + score_nrules * beta
         else:
-            score = 0.0
+            score = 0.0 """
             
         return score
     
