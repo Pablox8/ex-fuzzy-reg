@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from ex_fuzzy_reg import fuzzy_sets as fs
 
-
+# TODO: update trapezoidal_union tests to use trapezoidal_triangular_union instead
 def test_trapezoidal_membership_evaluates_key_points_correctly():
     """Test the trapezoidal membership function."""
     # Trapezoidal: [a, b, c, d] where b, c is the plateau

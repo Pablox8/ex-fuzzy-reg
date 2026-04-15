@@ -60,7 +60,6 @@ class FUZZY_SETS(enum.Enum):
     t2 = 'Type 2'
     gt2 = 'General Type 2'
 
-
     def __eq__(self, __value: object) -> bool:
         return self.value == __value.value
 
@@ -79,7 +78,7 @@ class FS():
         domain (list[float]): Two-element list defining the universe of discourse [min, max]
     """
 
-    def __init__(self, name: str, membership_parameters: list[float], domain: list[float]=None) -> None:
+    def __init__(self, name: str, membership_parameters: list[float], domain: list[float]=None, height: float=1.0) -> None:
         """
         Initialize a fuzzy set.
 
@@ -92,6 +91,7 @@ class FS():
         self.name = name
         self.domain = domain
         self.membership_parameters = membership_parameters
+        self.height = height
 
 
     @abc.abstractmethod
@@ -328,6 +328,16 @@ class TriangularFS(FS):
             result[right_mask] = h * (c - x[right_mask]) / (c - b)
         
         return result
+    
+    
+    def is_empty(self) -> bool:
+        """
+        Returns True if the fuzzy set is empty (all parameters are 0).
+
+        Returns: 
+            bool: if the fuzzy set is empty or not.
+        """
+        return self.membership_parameters == [0, 0, 0]
 
 
     def type(self) -> FUZZY_SETS:
@@ -461,8 +471,7 @@ class GaussianIVFS(IVFS):
 
 
 # TODO: implement Gaussian cut
-# TODO: handle edge case TriangularFS and h = 1
-def cut(fs1: FS, h: float) -> TrapezoidalFS:
+def cut(fs1: FS, h: float) -> FS:
     """
     Clips (truncates) the given fuzzy set at height h.
 
@@ -479,7 +488,7 @@ def cut(fs1: FS, h: float) -> TrapezoidalFS:
     Note:
         - If fs1 is triangular, the result is a trapezoidal fuzzy set.
         - If h == 0, the resulting fuzzy set has zero membership everywhere.
-        - If h == 1 and fs1 is trapezoidal, the original shape is preserved. 
+        - If h == 1, the original shape is preserved. 
     """
     if fs1.shape() != 'trapezoid' and fs1.shape() != 'triangular':
         raise ValueError('The fuzzy set must be either trapezoid or triangular.')
@@ -490,9 +499,8 @@ def cut(fs1: FS, h: float) -> TrapezoidalFS:
     if h == 0:
         fs2 = TrapezoidalFS(f"cut {fs1.name}",  [0, 0, 0, 0], fs1.domain, h)
         return fs2
-    if h == 1 and fs1.shape() == 'trapezoid':
-        fs2 = TrapezoidalFS(f"cut {fs1.name}", fs1.membership_parameters, fs1.domain, h)
-        return fs2
+    if h == 1: 
+        return fs1
     
     m_params = fs1.membership_parameters
 
@@ -547,7 +555,7 @@ def compute_intersection_x(s1, s2) -> float | None:
         if min(y1, y2) <= y <= max(y1, y2) and min(y1_p, y2_p) <= y <= max(y1_p, y2_p):
             return x1_p
         return None
-
+        
     m = (y2 - y1) / (x2 - x1)
     m_p = (y2_p - y1_p) / (x2_p - x1_p)
 
@@ -579,7 +587,71 @@ def segments_may_intersect(s1, s2) -> bool:
             max(s2[0][0], s2[1][0]) >= min(s1[0][0], s1[1][0]))
 
 
-def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.ndarray]:
+def trapezoidal_triangular_union(fuzzy_sets: list[FS]) -> tuple[np.ndarray, np.ndarray]:
+    if not fuzzy_sets:
+        return [], [] # no fuzzy sets passed
+    
+    if len(fuzzy_sets) == 1:
+        p_x = fuzzy_sets[0].membership_parameters
+        h = fuzzy_sets[0].height
+
+        if fuzzy_sets[0].shape() == 'trapezoid':
+            p_y = [0, h, h, 0]
+        elif fuzzy_sets[0].shape() == 'triangular':
+            p_y = [0, h, 0]
+        
+        return p_x, p_y
+
+    p_x = set()
+    segments = []
+
+    for i, fs in enumerate(fuzzy_sets):
+        if not fs.is_empty():
+            fs_x = fs.membership_parameters
+            h = fs.height
+
+            if fs.shape() == 'trapezoid':
+                x1, x2, x3, x4 = fs_x[0], fs_x[1], fs_x[2], fs_x[3]
+                h1, h2, h3, h4 = 0, h, h, 0
+                
+                p_x.update([x1, x2, x3, x4])
+            
+                segments.append(([(x1,h1),(x2,h2)], i))
+                segments.append(([(x2,h2),(x3,h3)], i))
+                segments.append(([(x3,h3),(x4,h4)], i))
+
+            elif fs.shape() == 'triangular':
+                x1, x2, x3 = fs_x[0], fs_x[1], fs_x[2]
+                h1, h2, h3 = 0, h, 0
+                
+                p_x.update([x1, x2, x3])
+            
+                segments.append(([(x1,h1),(x2,h2)], i))
+                segments.append(([(x2,h2),(x3,h3)], i))
+
+    if not p_x:
+        return [], [] # all fuzzy sets are empty
+
+    for i in range(len(segments)):
+        s1, idx1 = segments[i]
+        for j in range(i + 1, len(segments)):
+            s2, idx2 = segments[j]
+            
+            # only intersect segments from different trapezoids
+            if idx1 != idx2 and segments_may_intersect(s1, s2):
+                x_intersect = compute_intersection_x(s1, s2)
+                if x_intersect is not None:
+                    p_x.add(x_intersect)
+
+    p_x = np.sort(np.array(list(p_x)))
+    
+    y_values = np.array([fs.membership(p_x) for fs in fuzzy_sets if not fs.is_empty()])
+    p_y = np.max(y_values, axis=0)
+    
+    return p_x, p_y
+ 
+
+def trapezoidal_union(trapezoids: list[FS]) -> tuple[np.ndarray, np.ndarray]:
     """
     Given a list of trapezoids, computes and returns the points (x, y) representing the union of said trapezoids.
 
@@ -593,7 +665,7 @@ def trapezoidal_union(trapezoids: list[TrapezoidalFS]) -> tuple[np.ndarray, np.n
         Returns (None, None) if no trapezoids are passed or all passed trapezoids are empty.
     """
     if not trapezoids:
-        return None, None
+        return [], [] # no trapezoids passed
 
     if len(trapezoids) == 1:
         p_x = trapezoids[0].membership_parameters

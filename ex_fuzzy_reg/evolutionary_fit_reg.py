@@ -327,8 +327,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
             self.X = X
             self.var_names = [str(ix) for ix in range(X.shape[1])]
 
-        self.rule_base = problem._construct_ruleBase(
-        best_individual, self.fuzzy_type)
+        self.rule_base = problem._construct_ruleBase(best_individual, self.fuzzy_type)
 
         self.antecedents = self.rule_base.rule_bases[0].antecedents if self.antecedents is None else self.antecedents
 
@@ -661,7 +660,7 @@ class FitRuleBaseReg(Problem):
         vl_idx_bounds = np.array([[-1, self.n_linguistic_variables - 1]] * self.n_ants * self.n_rules)
         antecedent_bounds = np.concatenate((feature_idx_bounds, vl_idx_bounds), axis=0)
 
-        consequent_bounds = np.array([[np.min(self.y), np.max(self.y)]] * self.n_rules)
+        consequent_bounds = np.array([[0, self.n_linguistic_variables-1]] * self.n_rules)
 
         all_bounds = [antecedent_bounds, consequent_bounds]
 
@@ -682,6 +681,7 @@ class FitRuleBaseReg(Problem):
         self.beta_ = beta
         self.backend_name = backend_name
 
+        # TODO: figure out what is vars used for
         if thread_runner is not None:
             super().__init__(
                 #vars=vars,
@@ -843,14 +843,10 @@ class FitRuleBaseReg(Problem):
         other metrics can be used, this is provisional
         '''
 
-        for rule in ruleBase.rules:
-            print("ff", rule.antecedents, rule.consequent)
-
         y_pred = ruleBase.inference(X)
-        # 1 - NRMSE
+        # 1 - Normalized RMSE
         score = 1 - (root_mean_squared_error(y, y_pred) - self.min_bounds[-1]) / (self.max_bounds[-1] - self.min_bounds[-1])
 
-        # TODO: fitness function for regression
         # TODO: evalRuleBaseReg ¿?
         """ 
         if precomputed_truth is None:

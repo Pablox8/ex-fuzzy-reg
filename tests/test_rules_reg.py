@@ -100,6 +100,6 @@ def test_compute_cut_heights_returns_correct_values():
 
     assert (rb.compute_cut_heights(antecedents_memberships) == [0.5, 1/3]).all()
 
-
+# TODO: finish tests
 def test_forward_and_inference_return_same_output_in_RuleBaseRegT1():
     pass

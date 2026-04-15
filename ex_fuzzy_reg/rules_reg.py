@@ -134,7 +134,7 @@ class RuleBaseRegT1(RuleBase):
 
                 cut_consequents.append(fs.cut(self.consequent.__getitem__(rule_consequent), cut_height))
             
-            aggregated_consequents = fs.trapezoidal_union(cut_consequents)
+            aggregated_consequents = fs.trapezoidal_triangular_union(cut_consequents)
             p_x, p_y = aggregated_consequents
 
             # TODO: manage all empty cuts case (p_x = p_y = [])
