@@ -321,7 +321,7 @@ class GaussianFS(FS):
     """
     Gaussian fuzzy set implementation.
     """
-    def __init__(self, name: str, membership_parameters: list[float], universe_size: int) -> None:
+    def __init__(self, name: str, membership_parameters: list[float], universe_size: int, height: float=1.0) -> None:
         """
         Initialize a Gaussian fuzzy set.
 
@@ -329,18 +329,19 @@ class GaussianFS(FS):
             name (str): Linguistic name for the fuzzy set
             membership_parameters (list[float]): Two parameters [mean, std] defining 
                 the gaussian membership function where:
-                - mean: center of the gaussian curve where the membership function is 1
-                - std: spread of the gaussian curve. Must be greater than 0
+                - mean: center of the gaussian curve where the membership function is maximum
+                - std: spread of the gaussian curve. Must be greater or equal to 0
             universe_size (int): Number of elements considered in the discrete membership function
+            height: max value for the membership function. Defaults to 1
         """
         mean, std = membership_parameters
-        if std <= 0:
-            raise ValueError("std must be greater than 0.")
-        super().__init__(name, membership_parameters)
+        if std < 0:
+            raise ValueError("std must be greater or equal to 0.")
+        super().__init__(name, membership_parameters, height)
         self.universe_size = universe_size
 
 
-    def membership(self, x: np.ndarray) -> np.ndarray:
+    def membership(self, x: ArrayLike) -> np.ndarray:
         """
         Compute membership degrees for input values.
 
@@ -349,17 +350,23 @@ class GaussianFS(FS):
         
         The membership function is defined as:
 
-        μ(x) = exp(- (x - mean)^2 / (2 * std^2))
+        μ(x) = h * exp(- (x - mean)^2 / (2 * std^2))
 
         Args:
-            x (np.ndarray): Input value(s) for which to compute membership degrees.
+            x (array-like): Input value(s) for which to compute membership degrees.
                 Can be a single value, list, or numpy array.
 
         Returns:
             np.ndarray: Membership degree(s) in the range (0, 1]. Shape matches input.
         """
+        x = np.asanyarray(x)
         mean, std = self.membership_parameters
-        return np.exp(-(x - mean)**2 / (2*std**2))
+        h = self.height
+
+        if std == 0:
+            return np.where(x == mean, h, 0.0)
+
+        return h * np.exp(-(x - mean)**2 / (2*std**2))
 
     
     def type(self) -> FUZZY_SETS:
