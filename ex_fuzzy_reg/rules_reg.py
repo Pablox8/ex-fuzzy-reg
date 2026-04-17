@@ -123,6 +123,9 @@ class RuleBaseRegT1(RuleBase):
         '''
         output = []
 
+        # cases when p_x = p_y = []
+        consequent_fallback = np.mean([np.mean(lv.membership_parameters) for lv in self.consequent.linguistic_variables])
+
         for sample in x:
             antecedents_memberships = self.compute_antecedents_memberships(sample)
             cut_heights = self.compute_cut_heights(antecedents_memberships)
@@ -138,7 +141,10 @@ class RuleBaseRegT1(RuleBase):
             p_x, p_y = aggregated_consequents
 
             # TODO: manage all empty cuts case (p_x = p_y = [])
-            x_crisp = fs.centroid_defuzzification(p_x, p_y)
+            if len(p_x) == 0 or np.sum(p_y) == 0:
+                x_crisp = consequent_fallback
+            else:
+                x_crisp = fs.centroid_defuzzification(p_x, p_y)
             output.append(x_crisp)
         
         return np.array(output).reshape(-1, 1)

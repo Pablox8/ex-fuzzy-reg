@@ -845,7 +845,7 @@ class FitRuleBaseReg(Problem):
 
         y_pred = ruleBase.inference(X)
         # 1 - Normalized RMSE
-        score = 1 - (root_mean_squared_error(y, y_pred) - self.min_bounds[-1]) / (self.max_bounds[-1] - self.min_bounds[-1])
+        score = 1 - (root_mean_squared_error(y, y_pred)) / (self.max_bounds[-1] - self.min_bounds[-1])
 
         # TODO: evalRuleBaseReg ¿?
         """ 

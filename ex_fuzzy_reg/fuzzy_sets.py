@@ -263,9 +263,9 @@ class TrapezoidalFS(FS):
         Returns the shape of the fuzzy set.
 
         Returns: 
-            string: shape of the fuzzy set ('trapezoid' in this case).
+            string: shape of the fuzzy set ('trapezoidal' in this case).
         """
-        return 'trapezoid'
+        return 'trapezoidal'
 
 
 class TriangularFS(FS):
@@ -490,7 +490,7 @@ def cut(fs1: FS, h: float) -> FS:
         - If h == 0, the resulting fuzzy set has zero membership everywhere.
         - If h == 1, the original shape is preserved. 
     """
-    if fs1.shape() != 'trapezoid' and fs1.shape() != 'triangular':
+    if fs1.shape() != 'trapezoidal' and fs1.shape() != 'triangular':
         raise ValueError('The fuzzy set must be either trapezoid or triangular.')
 
     if h < 0 or h > 1:
@@ -595,7 +595,7 @@ def trapezoidal_triangular_union(fuzzy_sets: list[FS]) -> tuple[np.ndarray, np.n
         p_x = fuzzy_sets[0].membership_parameters
         h = fuzzy_sets[0].height
 
-        if fuzzy_sets[0].shape() == 'trapezoid':
+        if fuzzy_sets[0].shape() == 'trapezoidal':
             p_y = [0, h, h, 0]
         elif fuzzy_sets[0].shape() == 'triangular':
             p_y = [0, h, 0]
@@ -610,7 +610,7 @@ def trapezoidal_triangular_union(fuzzy_sets: list[FS]) -> tuple[np.ndarray, np.n
             fs_x = fs.membership_parameters
             h = fs.height
 
-            if fs.shape() == 'trapezoid':
+            if fs.shape() == 'trapezoidal':
                 x1, x2, x3, x4 = fs_x[0], fs_x[1], fs_x[2], fs_x[3]
                 h1, h2, h3, h4 = 0, h, h, 0
                 
