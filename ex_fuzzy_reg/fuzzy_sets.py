@@ -15,28 +15,24 @@ import numpy as np
 from numpy.typing import ArrayLike
 import pandas as pd
 
+"""
+Handles the logic for a trapezoidal membership function calculation.
 
-def _get_torch():
-    """Lazy import of torch to avoid expensive imports when not needed."""
-    try:
-        import torch
-        return torch
-    except ImportError:
-        return None
+Used for both trapezoidal and triangular fuzzy sets, since a TriangularFS with parameters [a, b, c] is equivalent to 
+a TrapezoidalFS with parameters [a, b, b, c].
+"""
+def _trapezoidal_membership_logic(x: np.ndarray, params: list[float], h: float):
+    x = np.asanarray(x) # if x is already a numpy array, passes it through
+    a, b, c, d = params
 
-
-def _is_torch_tensor(x):
-    """Check if x is a torch tensor without importing torch unless necessary."""
-    # First check the type name to avoid torch import if not needed
-    if type(x).__name__ != 'Tensor':
-        return False
+    if a == d:
+        return np.where(np.isclose(x, a), h, 0.0)
+            
+    with np.errstate(divide='ignore', invalid='ignore'):
+        aux1 = np.where(b > a, h*(x - a) / (b - a), 1.0)
+        aux2 = np.where(d > c, -h*(x - d) / (d - c), 1.0)
     
-    # Only import torch if we have a potential tensor
-    torch = _get_torch()
-    if torch is None:
-        return False
-    
-    return isinstance(x, torch.Tensor)
+    return np.clip(np.minimum(aux1, aux2), 0.0, h) 
 
 
 class FUZZY_SETS(enum.Enum):
@@ -64,7 +60,7 @@ class FUZZY_SETS(enum.Enum):
         return self.value == __value.value
 
 
-class FS():
+class FS(abc.ABC):
     """
     Base class for fuzzy set implementation.
     
@@ -176,11 +172,10 @@ class TrapezoidalFS(FS):
                 of discourse for this fuzzy set
             height (float): Max value of the membership function. It is 1 by default.
         """
-        super().__init__(name, membership_parameters, domain)
-        self.height = height
+        super().__init__(name, membership_parameters, domain, height)
 
 
-    def membership(self, x: ArrayLike, epsilon=10E-5) -> np.ndarray:
+    def membership(self, x: ArrayLike) -> np.ndarray:
         """
         Compute membership degrees for input values.
 
@@ -194,38 +189,8 @@ class TrapezoidalFS(FS):
         Returns:
             np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
         """
-        a, b, c, d = self.membership_parameters
-        h = self.height
-
-        # Special case: a singleton trapezoid
-        if a == d:
-            # If the y are numpy arrays, we need to use the numpy function
-            if isinstance(x, np.ndarray):
-                return np.equal(x, a).astype(float)
-            if _is_torch_tensor(x):
-                torch = _get_torch()
-                return torch.eq(x, a).float()
-                
-        if b == a:
-            b += epsilon
-        if c == d:
-            d += epsilon
-
-        aux1 = h*(x - a) / (b - a)
-        aux2 = -h*(x - d) / (d - c)
-        
-        if _is_torch_tensor(x):
-            torch = _get_torch()
-            return torch.clamp(torch.min(aux1, aux2), 0.0, h)
-
-        if isinstance(x, np.ndarray):
-            return np.clip(np.minimum(aux1, aux2), 0.0, h)        
-        elif isinstance(x, list):
-            return [np.clip(min(aux1, aux2), 0.0, h) for elem in x]
-        elif isinstance(x, pd.Series):
-            return np.clip(np.minimum(aux1, aux2), 0.0, h)
-        else: # Single value
-            return np.clip(min(aux1, aux2), 0.0, h)
+        x = np.asanarray(x) # if x is already a numpy array, passes it through
+        return _trapezoidal_membership_logic(x, self.membership_parameters, self.height)     
 
 
     def is_empty(self) -> bool:
@@ -287,11 +252,10 @@ class TriangularFS(FS):
                 of discourse for this fuzzy set
             height (float): Max value of the membership function. It is 1 by default.
         """
-        super().__init__(name, membership_parameters, domain)
-        self.height = height
+        super().__init__(name, membership_parameters, domain, height)
 
     
-    def membership(self, x: np.ndarray) -> np.ndarray:
+    def membership(self, x: ArrayLike) -> np.ndarray:
         """
         Compute membership degrees for input values.
 
@@ -299,36 +263,19 @@ class TriangularFS(FS):
         using the membership function defined by this fuzzy set's parameters.
 
         Args:
-            x (np.ndarray): Input value(s) for which to compute membership degrees.
+            x (array-like): Input value(s) for which to compute membership degrees.
                 Can be a single value, list, or numpy array.
 
         Returns:
             np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
         """
+        x = np.asanarray(x) # if x is already a numpy array, passes it through
         a, b, c = self.membership_parameters
         h = self.height
 
-        result = np.zeros_like(x, dtype=float)
-        valid = (a <= x) & (x <= c)
-        
-        # left side: v1 to v2
-        if a == b:
-            left_mask = valid & (x <= b)
-            result[left_mask] = h
-        else:
-            left_mask = valid & (x <= b)
-            result[left_mask] = h * (x[left_mask] - a) / (b - a)
-        
-        # right side: v2 to v3
-        if b == c:
-            right_mask = valid & (x >= b)
-            result[right_mask] = h
-        else:
-            right_mask = valid & (x > b)
-            result[right_mask] = h * (c - x[right_mask]) / (c - b)
-        
-        return result
-    
+        # TriangularFS [a, b, c] is equivalent to TrapezoidalFS [a, b, b, c]
+        return _trapezoidal_membership_logic(x, [a, b, b, c], h)
+
     
     def is_empty(self) -> bool:
         """
