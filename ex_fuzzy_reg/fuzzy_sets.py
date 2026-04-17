@@ -749,10 +749,10 @@ def centroid_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
     num = m * ba3 + n * ba2
     den = m * ba2 + n * ba
 
-    x_crisp = np.sum(num) / np.sum(den)
+    if np.sum(den) == 0:
+        return 0
 
-    if np.isnan(x_crisp):
-        x_crisp = 0
+    x_crisp = np.sum(num) / np.sum(den)
 
     return x_crisp
 
