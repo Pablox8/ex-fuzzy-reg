@@ -755,3 +755,18 @@ def centroid_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
         x_crisp = 0
 
     return x_crisp
+
+
+def first_of_maxima_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
+    return p_x[np.argmax(p_y)]
+
+
+def last_of_maxima_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
+    max_y = np.max(p_y)
+    return p_x[p_y == max_y][-1]
+
+
+def mean_of_maxima_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
+    max_y = np.max(p_y)
+    max_xs = p_x[p_y == max_y]
+    return np.mean(max_xs)
