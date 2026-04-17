@@ -560,6 +560,18 @@ def segments_may_intersect(s1, s2) -> bool:
 
 
 def trapezoidal_triangular_union(fuzzy_sets: list[FS]) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Given a list of trapezoidal and triangular fuzzy sets, computes and returns the points (x, y) representing the union of all fuzzy sets passsed.
+
+    Args:
+        fuzzy_sets (list[FS]): fuzzy sets to compute the union of.
+    
+    Returns:
+        tuple[np.ndarray, np.ndarray]: x and y component of the calculated union points. Both have the same shape.
+            - x (np.ndarray): Sorted x-coordinates covering all fuzzy sets and their intersections.
+            - y (np.ndarray): Corresponding y-values representing the maximum membership at each x.
+        Returns (None, None) if no fuzzy sets are passed or all passed fuzzy sets are empty.
+    """
     if not fuzzy_sets:
         return [], [] # no fuzzy sets passed
     
@@ -623,6 +635,7 @@ def trapezoidal_triangular_union(fuzzy_sets: list[FS]) -> tuple[np.ndarray, np.n
     return p_x, p_y
  
 
+# TODO: delete this maybe
 def trapezoidal_union(trapezoids: list[FS]) -> tuple[np.ndarray, np.ndarray]:
     """
     Given a list of trapezoids, computes and returns the points (x, y) representing the union of said trapezoids.
