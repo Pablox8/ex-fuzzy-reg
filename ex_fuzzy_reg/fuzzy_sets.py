@@ -23,7 +23,7 @@ Used for both trapezoidal and triangular fuzzy sets, since a TriangularFS with p
 a TrapezoidalFS with parameters [a, b, b, c].
 """
 def _trapezoidal_membership_logic(x: np.ndarray, params: list[float], h: float):
-    x = np.asanarray(x) # if x is already a numpy array, passes it through
+    x = np.asanyarray(x) # if x is already a numpy array, passes it through
     a, b, c, d = params
 
     if a == d:
@@ -142,7 +142,6 @@ class FS(abc.ABC):
         raise NotImplementedError
 
 
-    @abc.abstractmethod
     def is_empty(self) -> bool:
         """
         Returns True if the fuzzy set is empty (all parameters are 0).
@@ -150,7 +149,7 @@ class FS(abc.ABC):
         Returns: 
             bool: if the fuzzy set is empty or not.
         """
-        raise NotImplementedError
+        return self.height == 0
 
 
 class TrapezoidalFS(FS):
@@ -190,18 +189,8 @@ class TrapezoidalFS(FS):
         Returns:
             np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
         """
-        x = np.asanarray(x) # if x is already a numpy array, passes it through
+        x = np.asanyarray(x) # if x is already a numpy array, passes it through
         return _trapezoidal_membership_logic(x, self.membership_parameters, self.height)     
-
-
-    def is_empty(self) -> bool:
-        """
-        Returns True if the fuzzy set is empty (all parameters are 0).
-
-        Returns: 
-            bool: if the fuzzy set is empty or not.
-        """
-        return self.membership_parameters == [0, 0, 0, 0]
 
 
     def type(self) -> FUZZY_SETS:
@@ -270,22 +259,12 @@ class TriangularFS(FS):
         Returns:
             np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
         """
-        x = np.asanarray(x) # if x is already a numpy array, passes it through
+        x = np.asanyarray(x) # if x is already a numpy array, passes it through
         a, b, c = self.membership_parameters
         h = self.height
 
         # TriangularFS [a, b, c] is equivalent to TrapezoidalFS [a, b, b, c]
         return _trapezoidal_membership_logic(x, [a, b, b, c], h)
-
-    
-    def is_empty(self) -> bool:
-        """
-        Returns True if the fuzzy set is empty (all parameters are 0).
-
-        Returns: 
-            bool: if the fuzzy set is empty or not.
-        """
-        return self.membership_parameters == [0, 0, 0]
 
 
     def type(self) -> FUZZY_SETS:
@@ -331,14 +310,14 @@ class GaussianFS(FS):
             membership_parameters (list[float]): Two parameters [mean, std] defining 
                 the gaussian membership function where:
                 - mean: center of the gaussian curve where the membership function is maximum
-                - std: spread of the gaussian curve. Must be greater or equal to 0
+                - std: spread of the gaussian curve. Must be greater than 0
             universe_size (int): Number of elements considered in the discrete membership function
             height: max value for the membership function. Defaults to 1
         """
         mean, std = membership_parameters
-        if std < 0:
-            raise ValueError("std must be greater or equal to 0.")
-        super().__init__(name, membership_parameters, height)
+        if std <= 0:
+            raise ValueError("std must be greater than 0.")
+        super().__init__(name, membership_parameters, domain=None, height=height)
         self.universe_size = universe_size
 
 
@@ -364,12 +343,9 @@ class GaussianFS(FS):
         mean, std = self.membership_parameters
         h = self.height
 
-        if std == 0:
-            return np.where(x == mean, h, 0.0)
-
         return h * np.exp(-(x - mean)**2 / (2*std**2))
-
     
+
     def type(self) -> FUZZY_SETS:
         """
         Returns the fuzzy set type identifier.
@@ -463,7 +439,7 @@ def cut(fs1: FS, h: float) -> FS:
         # value of x where membership(x) = h
         x_offset = std * math.sqrt(-2 * math.log(h / orig_h))
         z1 = mean - x_offset
-        z2 = mean - x_offset
+        z2 = mean + x_offset
 
         # 3-sigma covers approximately 99.7% of the area
         a = mean - 3*std
@@ -750,7 +726,7 @@ def centroid_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
     den = m * ba2 + n * ba
 
     if np.sum(den) == 0:
-        return 0
+        return np.nan
 
     x_crisp = np.sum(num) / np.sum(den)
 
