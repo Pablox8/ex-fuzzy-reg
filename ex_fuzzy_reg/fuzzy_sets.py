@@ -10,6 +10,7 @@ Supports NumPy arrays and optionally PyTorch tensors.
 """
 import enum
 import abc
+import math
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -424,7 +425,6 @@ class GaussianIVFS(IVFS):
     pass
 
 
-# TODO: implement Gaussian cut
 def cut(fs1: FS, h: float) -> FS:
     """
     Clips (truncates) the given fuzzy set at height h.
@@ -455,7 +455,25 @@ def cut(fs1: FS, h: float) -> FS:
         return fs2
     if h == 1: 
         return fs1
-    
+
+    if fs1.shape() == 'gaussian':
+        mean, std = fs1.membership_parameters
+        orig_h = fs1.height
+
+        # value of x where membership(x) = h
+        x_offset = std * math.sqrt(-2 * math.log(h / orig_h))
+        z1 = mean - x_offset
+        z2 = mean - x_offset
+
+        # 3-sigma covers approximately 99.7% of the area
+        a = mean - 3*std
+        d = mean + 3*std
+
+        a = min(a, z1)
+        d = max(d, z2)
+
+        return TrapezoidalFS(f"cut {fs1.name}", [a, z1, z2, d], fs1.domain, h)
+
     m_params = fs1.membership_parameters
 
     z1 = m_params[0] + h * (m_params[1] - m_params[0])
