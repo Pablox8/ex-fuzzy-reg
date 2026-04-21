@@ -133,50 +133,50 @@ def test_compute_intersection_x_handles_vertical_segments_correctly():
     assert x == 1
 
 
-def test_trapezoidal_union_combines_overlapping_sets_correctly():
+def test_trapezoidal_triangular_union_combines_overlapping_sets_correctly():
     fs1 = fs.TrapezoidalFS("T1", [0, 2, 3, 4], [0, 6], 0.7)
     fs2 = fs.TrapezoidalFS("T2", [2, 3, 4, 6], [0, 6])
 
-    u_x, u_y = fs.trapezoidal_union([fs1, fs2])
+    u_x, u_y = fs.trapezoidal_triangular_union([fs1, fs2])
 
     assert u_x == pytest.approx([0, 2, 2.7, 3, 4, 6])
     assert u_y == pytest.approx([0, 0.7, 0.7, 1, 1, 0])
 
 
-def test_trapezoidal_union_ignores_empty_set():
+def test_trapezoidal_triangular_union_ignores_empty_set():
     fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     empty = fs.TrapezoidalFS("empty", [1, 2, 3, 4], [0, 5], 0)
 
-    u_x, u_y = fs.trapezoidal_union([fs_test, empty])
+    u_x, u_y = fs.trapezoidal_triangular_union([fs_test, empty])
 
     assert u_x == pytest.approx([1, 2, 3, 4])
     assert u_y == pytest.approx([0, 0.7, 0.7, 0])
 
 
-def test_trapezoidal_union_takes_maximum_height_when_overlapping():
+def test_trapezoidal_triangular_union_takes_maximum_height_when_overlapping():
     fs_test = fs.TrapezoidalFS("trial 1", [1, 2, 3, 4], [0, 5], 0.7)
     all_max_h = fs.TrapezoidalFS("all max h", [1, 2, 3, 4], [0, 5], 1)
     
-    u_x, u_y = fs.trapezoidal_union([fs_test, all_max_h])
+    u_x, u_y = fs.trapezoidal_triangular_union([fs_test, all_max_h])
 
     assert u_x == pytest.approx([1, 2, 3, 4])
     assert u_y == pytest.approx([0, 1, 1, 0])
 
 
-def test_trapezoidal_union_returns_none_if_no_trapezoids_passed():
+def test_trapezoidal_triangular_union_returns_empty_lists_if_no_trapezoids_passed():
     u_x, u_y = fs.trapezoidal_union([])
 
-    assert u_x is None
-    assert u_y is None
+    assert u_x == []
+    assert u_y == []
 
 
-def test_trapezoidal_union_returns_none_if_all_trapezoids_are_empty():
+def test_trapezoidal_triangular_union_returns_empty_lists_if_all_trapezoids_are_empty():
     fs_empty1 = fs.TrapezoidalFS("empty 1", [0, 0, 0, 0], [0, 0])
     fs_empty2 = fs.TrapezoidalFS("empty 2", [0, 0, 0, 0], [0, 0])
     u_x, u_y = fs.trapezoidal_union([fs_empty1, fs_empty2])
 
-    assert u_x is None
-    assert u_y is None
+    assert u_x == []
+    assert u_y == []
 
 
 def test_centroid_defuzzification_returns_correct_value_for_matched_example():

@@ -608,66 +608,6 @@ def trapezoidal_triangular_union(fuzzy_sets: list[FS]) -> tuple[np.ndarray, np.n
     return p_x, p_y
  
 
-# TODO: delete this maybe
-def trapezoidal_union(trapezoids: list[FS]) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Given a list of trapezoids, computes and returns the points (x, y) representing the union of said trapezoids.
-
-    Args:
-        trapezoids (list[TrapezoidalFS]): trapezoids to compute the union.
-    
-    Returns:
-        tuple[np.ndarray, np.ndarray]: x and y component of the calculated union points. Both have the same shape.
-            - x (np.ndarray): Sorted x-coordinates covering all trapezoids and their intersections.
-            - y (np.ndarray): Corresponding y-values representing the maximum membership at each x.
-        Returns (None, None) if no trapezoids are passed or all passed trapezoids are empty.
-    """
-    if not trapezoids:
-        return [], [] # no trapezoids passed
-
-    if len(trapezoids) == 1:
-        p_x = trapezoids[0].membership_parameters
-        h = trapezoids[0].height
-        p_y = [0, h, h, 0]
-        return p_x, p_y
-    
-    p_x = set()
-    segments = []
-
-    for i, trapezoid in enumerate(trapezoids):
-        if not trapezoid.is_empty():
-            t_x = trapezoid.membership_parameters
-            h = trapezoids[i].height
-            x1, x2, x3, x4 = t_x[0], t_x[1], t_x[2], t_x[3]
-            h1, h2, h3, h4 = 0, h, h, 0
-            p_x.update([x1, x2, x3, x4])
-            
-            segments.append(([(x1,h1),(x2,h2)], i))
-            segments.append(([(x2,h2),(x3,h3)], i))
-            segments.append(([(x3,h3),(x4,h4)], i))
-
-    if not p_x:
-        return [], [] # all trapezoids are empty
-
-    for i in range(len(segments)):
-        s1, idx1 = segments[i]
-        for j in range(i + 1, len(segments)):
-            s2, idx2 = segments[j]
-            
-            # only intersect segments from different trapezoids
-            if idx1 != idx2 and segments_may_intersect(s1, s2):
-                x_intersect = compute_intersection_x(s1, s2)
-                if x_intersect is not None:
-                    p_x.add(x_intersect)
-
-    p_x = np.sort(np.array(list(p_x)))
-    
-    y_values = np.array([fs.membership(p_x) for fs in trapezoids if not fs.is_empty()])
-    p_y = np.max(y_values, axis=0)
-    
-    return p_x, p_y
-
-
 def centroid_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
     """
     Computes the x-coordinate of the centroid (center of gravity) of a 
