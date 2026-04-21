@@ -16,6 +16,8 @@ class MamdaniFIS(RegressorMixin):
         self.linguistic_variables = linguistic_variables
         self.linguistic_variables_type = linguistic_variables_type
         self.n_labels = n_labels
+        self.n_rules = n_rules
+        self.tolerance = tolerance
 
     
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
@@ -25,7 +27,7 @@ class MamdaniFIS(RegressorMixin):
             # TODO: extract label_names and fuzzy variable names from X and y
             self.linguistic_variables = utils.generate_triangular_partitions(data, self.n_labels) 
       
-        self.rule_base = utils.generate_rules(data, self.linguistic_variables)
+        self.rule_base = utils.generate_rules(data, self.linguistic_variables, self.n_rules, self.tolerance)
 
 
     def predict(self, X: np.ndarray) -> np.ndarray:
