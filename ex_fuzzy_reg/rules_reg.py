@@ -102,6 +102,7 @@ class RuleBaseRegT1(RuleBase):
                     memberships_for_rule.append(membership_value)
             
             if memberships_for_rule:
+                # TODO: update to use self.tnorm instead of np.min
                 cut_height = np.min(memberships_for_rule)
             else:
                 cut_height = 0.0  
@@ -140,7 +141,6 @@ class RuleBaseRegT1(RuleBase):
             aggregated_consequents = fs.trapezoidal_triangular_union(cut_consequents)
             p_x, p_y = aggregated_consequents
 
-            # TODO: manage all empty cuts case (p_x = p_y = [])
             if len(p_x) == 0 or np.sum(p_y) == 0:
                 x_crisp = consequent_fallback
             else:

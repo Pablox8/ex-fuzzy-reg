@@ -176,7 +176,7 @@ class FuzzyVariable():
         cond4 = True
         for i in range(len(self.linguistic_variables) - 1):
             if np.any(memberships[i, :] < memberships[i + 1, :]) and np.any(memberships[i, :] > memberships[i + 1, :]):
-                valid = False
+                cond4 = False
                 break
         
         if not cond4 and verbose:
