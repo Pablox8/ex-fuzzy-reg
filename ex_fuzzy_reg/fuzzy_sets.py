@@ -420,9 +420,6 @@ def cut(fs1: FS, h: float) -> FS:
         - If h == 0, the resulting fuzzy set has zero membership everywhere.
         - If h == 1, the original shape is preserved. 
     """
-    if fs1.shape() != 'trapezoidal' and fs1.shape() != 'triangular':
-        raise ValueError('The fuzzy set must be either trapezoid or triangular.')
-
     if h < 0 or h > 1:
         raise ValueError("h must be in range [0, 1].")
 
