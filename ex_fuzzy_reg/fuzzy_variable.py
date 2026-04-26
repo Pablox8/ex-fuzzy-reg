@@ -163,7 +163,7 @@ class FuzzyVariable():
             print('Property 1 violated: More than one fuzzy set has a membership of 1 at the same time.')
 
         # Property 2: All fuzzy sets are fuzzy numbers is fullfilled if they are trapezoidal or gaussian
-        cond2 = all([fs.shape() in ['trapezoid', 'triangular', 'gaussian'] for fs in self.linguistic_variables])
+        cond2 = all([fs.shape() in ['trapezoidal', 'triangular', 'gaussian'] for fs in self.linguistic_variables])
         if not cond2 and verbose:
             print('Property 2 violated: Not all fuzzy sets are fuzzy numbers (trapezoidal or gaussian).')
 

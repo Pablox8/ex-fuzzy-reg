@@ -107,6 +107,11 @@ class FS(abc.ABC):
             np.ndarray: Membership degree(s) in the range [0, 1]. Shape matches input.
         """
         raise NotImplementedError
+    
+
+    @abc.abstractmethod
+    def centroid(self) -> float:
+        raise NotImplementedError
 
 
     @abc.abstractmethod
@@ -191,6 +196,12 @@ class TrapezoidalFS(FS):
         """
         x = np.asanyarray(x) # if x is already a numpy array, passes it through
         return _trapezoidal_membership_logic(x, self.membership_parameters, self.height)     
+    
+
+    def centroid(self) -> float:
+        p_x = self.membership_parameters
+        p_y = [0, self.height, self.height, 0]
+        return centroid_defuzzification(p_x, p_y)
 
 
     def type(self) -> FUZZY_SETS:
@@ -210,7 +221,8 @@ class TrapezoidalFS(FS):
         Returns: 
             string: name, type and parameters of the fuzzy set.
         """
-        return f'{self.name} ({self.type().name}) - {self.membership_parameters} - {self.height}'
+        params = [float(v) for v in self.membership_parameters]
+        return f'{self.name} ({self.type().name}) - {params} - {self.height}'
     
 
     def shape(self) -> str:
@@ -265,6 +277,12 @@ class TriangularFS(FS):
 
         # TriangularFS [a, b, c] is equivalent to TrapezoidalFS [a, b, b, c]
         return _trapezoidal_membership_logic(x, [a, b, b, c], h)
+    
+
+    def centroid(self) -> float:
+        p_x = self.membership_parameters
+        p_y = [0, self.height, 0]
+        return centroid_defuzzification(p_x, p_y)
 
 
     def type(self) -> FUZZY_SETS:
@@ -284,7 +302,8 @@ class TriangularFS(FS):
         Returns: 
             string: name, type and parameters of the fuzzy set.
         """
-        return f'{self.name} ({self.type().name}) - {self.membership_parameters} - {self.height}'
+        params = [float(v) for v in self.membership_parameters]
+        return f'{self.name} ({self.type().name}) - {params} - {self.height}'
     
 
     def shape(self) -> str:
@@ -344,6 +363,11 @@ class GaussianFS(FS):
         h = self.height
 
         return h * np.exp(-(x - mean)**2 / (2*std**2))
+
+    
+    def centroid(self) -> float:
+        mean, std = self.membership_parameters
+        return mean
     
 
     def type(self) -> FUZZY_SETS:
@@ -363,7 +387,8 @@ class GaussianFS(FS):
         Returns: 
             string: name, type and parameters of the fuzzy set.
         """
-        return f'{self.name} ({self.type().name}) - {self.membership_parameters}'
+        params = [float(v) for v in self.membership_parameters]
+        return f'{self.name} ({self.type().name}) - {params}'
     
 
     def shape(self) -> str:
@@ -452,7 +477,7 @@ def cut(fs1: FS, h: float) -> FS:
     z1 = m_params[0] + h * (m_params[1] - m_params[0])
 
     if fs1.shape() == 'triangular':
-        z2 = m_params[1] + h * (m_params[2] - m_params[1])
+        z2 = m_params[2] - h * (m_params[2] - m_params[1])
     else:
         z2 = m_params[2] + h * (m_params[3] - m_params[2])
 

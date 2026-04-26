@@ -21,7 +21,8 @@ class MamdaniFIS(RegressorMixin):
 
     
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        y = y.reshape(-1, 1)
+        if y.ndim != 2:
+            y = y.reshape(-1, 1)
         data = np.hstack((X, y))
 
         if not self.linguistic_variables:

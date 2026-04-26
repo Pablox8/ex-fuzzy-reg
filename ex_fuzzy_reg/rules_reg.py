@@ -33,6 +33,14 @@ def compute_antecedents_memberships(antecedents: list[fv.FuzzyVariable], x: np.n
 
     return np.array(cache_antecedent_memberships)
 
+def compute_antecedents_memberships_batch(antecedents: list[fv.FuzzyVariable], X: np.ndarray) -> np.ndarray:
+    # X shape: (n_samples, n_vars)
+    # Salida:  (n_samples, n_vars, n_labels)
+    result = np.stack([
+        antecedent.compute_memberships(X[:, ix]).T  # (n_samples, n_labels)
+        for ix, antecedent in enumerate(antecedents)
+    ], axis=1)
+    return result
 
 # TODO: add tests and document for this module
 class RuleBaseRegT1(RuleBase):
@@ -83,10 +91,20 @@ class RuleBaseRegT1(RuleBase):
         else:
             if self.fuzzy_type() == fs.FUZZY_SETS.t1:
                 return np.zeros((x.shape[0], 1))
-            elif self.fuzzy_type() == fs.FUZZY_SETS.t2:
-                return np.zeros((x.shape[0], 1, 2))
-            elif self.fuzzy_type() == fs.FUZZY_SETS.gt2:
-                return np.zeros((x.shape[0], len(self.alpha_cuts), 2))
+            # NOT USED FOR NOW
+            # elif self.fuzzy_type() == fs.FUZZY_SETS.t2:
+            #     return np.zeros((x.shape[0], 1, 2))
+            # elif self.fuzzy_type() == fs.FUZZY_SETS.gt2:
+            #     return np.zeros((x.shape[0], len(self.alpha_cuts), 2))
+    
+    def compute_antecedents_memberships_batch(self, X: np.ndarray) -> np.ndarray:
+        # X shape: (n_samples, n_vars)
+        # Salida:  (n_samples, n_vars, n_labels)
+        result = np.stack([
+            antecedent.compute_memberships(X[:, ix]).T  # (n_samples, n_labels)
+            for ix, antecedent in enumerate(self.antecedents)
+        ], axis=1)
+        return result
 
 
     def compute_cut_heights(self, antecedents_memberships: np.ndarray) -> np.ndarray:
@@ -111,6 +129,40 @@ class RuleBaseRegT1(RuleBase):
         
         return np.array(cut_heights)
 
+    
+    def compute_cut_heights_batch(self, memberships_batch: np.ndarray) -> np.ndarray:
+        """
+        Args:
+            memberships_batch: (n_samples, n_variables, n_mfs)
+        Returns:
+            (n_samples, n_rules)
+        """
+        n_samples = memberships_batch.shape[0]
+        all_rule_strengths = []
+
+        for rule in self.rules:
+            ants = np.array(rule.antecedents)
+            valid_vars = np.where(ants != -1)[0]
+            valid_mfs = ants[valid_vars]
+            
+            if valid_vars.size > 0:
+                # Shape: (n_samples, len(valid_vars))
+                rule_memberships = memberships_batch[:, valid_vars, valid_mfs]
+                
+                # We want the minimum membership ACROSS variables for each sample
+                # Axis 1 is the variable axis. Result shape: (n_samples,)
+                strength = np.min(rule_memberships, axis=1)
+            else:
+                # Rule with no antecedents fires at 1.0 (identity) or 0.0
+                strength = np.ones(n_samples)
+
+            all_rule_strengths.append(strength)
+
+        # all_rule_strengths is a list of length n_rules
+        # Each element is an array of shape (n_samples,)
+        # np.column_stack joins them into (n_samples, n_rules)
+        return np.column_stack(all_rule_strengths)
+    
 
     def inference(self, x: np.ndarray) -> np.ndarray:
         '''
@@ -150,6 +202,47 @@ class RuleBaseRegT1(RuleBase):
         return np.array(output).reshape(-1, 1)
 
 
+    def inference_optimized(self, X: np.ndarray, precomputed_truth=None) -> np.ndarray:
+        """Vectorized Mamdani inference for regression."""
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
+        
+        # 1. Compute memberships for all samples at once
+        # Shape: (n_samples, n_vars, n_labels)
+        if precomputed_truth is None:
+            memberships_batch = self.compute_antecedents_memberships_batch(X)
+        else:
+            memberships_batch = precomputed_truth
+        
+        # 2. Compute rule firing strengths (t-norm) for all rules and samples
+        # Shape: (n_samples, n_rules)
+        firing_strengths = self.compute_cut_heights_batch(memberships_batch)
+        #print(firing_strengths.shape)
+        
+        # 3. Get consequent centroids (or singleton values)
+        # For Mamdani regression, we often use the center of the consequent FS
+        consequent_values = np.array([
+            self.consequent[rule.consequent].centroid() # Assuming centroid() exists
+            for rule in self.rules
+        ])
+
+        # 4. Weighted Average Defuzzification
+        # Output = sum(firing_strength * consequent_value) / sum(firing_strength)
+        numerator = np.dot(firing_strengths, consequent_values)
+        denominator = np.sum(firing_strengths, axis=1)
+
+        # Avoid division by zero
+        fallback = np.mean(consequent_values)
+
+        y_pred = np.divide(
+            numerator, 
+            denominator, 
+            out=np.full(numerator.shape, fallback), 
+            where=denominator > 0
+        )
+        return y_pred
+
+
     def forward(self, x: np.ndarray) -> np.ndarray:
         '''
         Same as inference() in the t1 case.
@@ -173,6 +266,19 @@ class RuleBaseRegT1(RuleBase):
             FUZZY_SETS: the corresponding fuzzy set type of the RuleBase.
         '''
         return fs.FUZZY_SETS.t1
+    
+
+    def purge_empty_rules(self) -> None:
+        '''
+        Remove rules where every antecedent is -1.
+        
+        These rules fire at strength 1.0 for every sample because the t-norm
+        neutral element fills each don't-care slot, corrupting every prediction.
+        '''
+        self.rules = [
+            rule for rule in self.rules
+            if any(a != -1 for a in rule.antecedents)
+        ]
 
 
 class ConsequentTSK:
@@ -202,7 +308,6 @@ class RuleSimpleTSK:
         return self.consequent.compute_consequent(x)
     
     
-
 class RuleBaseRegTSK:
     def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimpleTSK], tnorm = np.min) -> None:
         self.rules = rules

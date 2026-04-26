@@ -36,13 +36,13 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import matthews_corrcoef, root_mean_squared_error
 from sklearn.base import BaseEstimator, RegressorMixin
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import ThreadPool, Pool
 from pymoo.core.problem import Problem
 from pymoo.core.variable import Integer
 
 from ex_fuzzy.rules import RuleSimple
-from ex_fuzzy_reg import evolutionary_backends as ev_backends
-from ex_fuzzy_reg.fuzzy_sets import TriangularFS
+from ex_fuzzy_reg import evolutionary_backends_reg as ev_backends
+from ex_fuzzy_reg.fuzzy_sets import TriangularFS, TrapezoidalFS
 from ex_fuzzy_reg.fuzzy_variable import FuzzyVariable
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
 
@@ -78,7 +78,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
 
     def __init__(self,  n_rules: int = 30, n_ants: int = 4, fuzzy_type: fs.FUZZY_SETS = fs.FUZZY_SETS.t1, fuzzy_set_type: str='trapezoidal', tolerance: float = 0.0,
                  n_linguistic_variables: int = 3, verbose=False, antecedents: list[fv.FuzzyVariable] = None, consequent: fv.FuzzyVariable = None, categorical_mask: np.array=None,
-                 domain: list = None, precomputed_rules: RuleBaseRegT1=None, runner: int=1, allow_unknown:bool=False, backend: str='pymoo') -> None:
+                 domain: list = None, precomputed_rules: RuleBaseRegT1=None, runner: int=1, allow_unknown:bool=False, backend: str='pymoo', optimize_lv: bool=False) -> None:
         '''
         # TODO: fix the docs
         Inits the optimizer with the corresponding parameters.
@@ -111,19 +111,19 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         self.verbose = verbose
         self.tolerance = tolerance
         self.allow_unknown = allow_unknown
+        self.optimize_lv = optimize_lv
         
         # Initialize evolutionary backend
         try:
             self.backend = ev_backends.get_backend(backend)
-            if verbose:
-                print(f"Using evolutionary backend: {self.backend.name()}")
         except ValueError as e:
             if verbose:
                 print(f"Warning: {e}. Falling back to pymoo backend.")
             self.backend = ev_backends.get_backend('pymoo')
 
         if runner > 1 and StarmapParallelization is not None:
-            pool = ThreadPool(runner)
+            #pool = ThreadPool(runner)
+            pool = Pool(runner)
             self.thread_runner = StarmapParallelization(pool.starmap)
         else:
             if runner > 1 and StarmapParallelization is None and verbose:
@@ -167,7 +167,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
 
     def fit(self, X: np.array, y: np.array, n_gen:int=70, pop_size:int=30,
             checkpoints:int=0, candidate_rules: RuleBaseRegT1=None, initial_rules: RuleBaseRegT1=None, random_state:int=33,
-            var_prob:float=0.3, sbx_eta:float=3.0, mutation_eta:float=7.0, tournament_size:int=3, bootstrap_size:int=1000, checkpoint_path:str='',
+            var_prob:float=0.9, sbx_eta:float=3.0, mut_prob:float=0.2, mutation_eta:float=4.0, tournament_size:int=3, bootstrap_size:int=1000, checkpoint_path:str='',
             p_value_compute:bool=False, checkpoint_callback: Callable[[int, RuleBaseRegT1], None] = None) -> None:
         '''
         Fits a fuzzy rule based classifier using a genetic algorithm to the given data.
@@ -188,15 +188,12 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         :param checkpoint_callback: function. Callback function that get executed at each checkpoint ('checkpoints' must be greater than 0), its arguments are the generation number and the rule_base of the checkpoint.
         :return: None. The classifier is fitted to the data.
         '''
-
+        y = y.reshape(-1, 1)
         if isinstance(X, pd.DataFrame):
             lvs_names = list(X.columns)
             X = X.values
         else:
             lvs_names = [str(ix) for ix in range(X.shape[1])]
-            
-        if isinstance(np.array(y)[0], str):
-            y = np.array([self.classes_names.index(str(aux)) for aux in y])
             
         if candidate_rules is None:
             if initial_rules is not None:
@@ -221,13 +218,13 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
                 problem = FitRuleBaseReg(X, y, n_rules=self.n_rules, n_ants=self.n_ants, tolerance=self.tolerance, 
                                     n_linguistic_variables=self.n_linguistic_variables, fuzzy_type=self.fuzzy_type, fuzzy_set_type=self.fuzzy_set_type, domain=self.domain, thread_runner=self.thread_runner,
                                     alpha=self.alpha_, beta=self.beta_, categorical_mask=self.categorical_mask,
-                                    backend_name=self.backend.name(), var_names=lvs_names)
+                                    backend_name=self.backend.name(), var_names=lvs_names, optimize_lv=self.optimize_lv)
             else:
                 # If Fuzzy variables are already precomputed.
                 problem = FitRuleBaseReg(X, y, n_rules=self.n_rules, n_ants=self.n_ants, 
                                     antecedents=self.antecedents, consequent=self.consequent, domain=self.domain, tolerance=self.tolerance, thread_runner=self.thread_runner,
                                     alpha=self.alpha_, beta=self.beta_,
-                                    backend_name=self.backend.name(), var_names=lvs_names)
+                                    backend_name=self.backend.name(), var_names=lvs_names, optimize_lv=self.optimize_lv)
         else:
             pass # TODO: provisional, change later
             # self.fuzzy_type = candidate_rules.fuzzy_type()
@@ -241,7 +238,8 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         if initial_rules is None:
             rules_gene = None  # Will use default random sampling
         else:
-            rules_gene = problem.encode_rulebase(initial_rules, self.antecedents is None)
+            # rules_gene = problem.encode_rulebase(initial_rules, self.antecedents is None)
+            rules_gene = problem.encode_rulebase(initial_rules, optimize_lv=self.optimize_lv)
             rules_gene = (np.ones((pop_size, len(rules_gene))) * rules_gene).astype(int)
 
         # TODO: checkpoints?
@@ -303,6 +301,17 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
                 self.performance = 1 - result['F']
         else: """
 
+        # Precalcular caché para _evaluate_torch_batch si se usa EvoX
+        if self.backend.name() == 'evox':
+            problem._cached_memberships = np.stack([
+                ant.compute_memberships(X[:, ix]).T
+                for ix, ant in enumerate(problem.antecedents)
+            ], axis=1)  # (n_samples, n_vars, n_labels)
+
+            problem._cached_consequent_centroids = np.array([
+                fs.centroid() for fs in problem.consequent
+            ])  # (n_labels,)
+
         # Normal optimization without checkpoints
         result = self.backend.optimize(
             problem=problem,
@@ -312,6 +321,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
             verbose=self.verbose,
             var_prob=var_prob,
             sbx_eta=sbx_eta,
+            mut_prob=mut_prob,
             mutation_eta=mutation_eta,
             tournament_size=tournament_size,
             sampling=rules_gene
@@ -320,16 +330,13 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         best_individual = result['X']
         self.performance = 1 - result['F']
 
-        try:
-            self.var_names = list(X.columns)
-            self.X = X.values
-        except AttributeError:
-            self.X = X
-            self.var_names = [str(ix) for ix in range(X.shape[1])]
+        self.X = X
+        self.var_names = [str(ix) for ix in range(X.shape[1])]
 
-        self.rule_base = problem._construct_ruleBase(best_individual, self.fuzzy_type)
+        self.rule_base = problem._construct_ruleBase(best_individual, self.fuzzy_type, optimize_lv=self.optimize_lv)
 
-        self.antecedents = self.rule_base.rule_bases[0].antecedents if self.antecedents is None else self.antecedents
+        self.antecedents = self.rule_base.antecedents if self.antecedents is None else self.antecedents
+        self.consequent = self.rule_base.consequent if self.consequent is None else self.consequent
 
         #self.eval_performance = evr.evalRuleBase(
         #self.rule_base, np.array(X), y)
@@ -392,7 +399,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
         except AttributeError:
             pass
         
-        return self.rule_base.inference(X) # ¿?
+        return self.rule_base.inference_optimized(X) 
         
 
     def predict(self, X: np.array) -> np.array:
@@ -507,10 +514,7 @@ class FitRuleBaseReg(Problem):
         :param n_linguistic_variables: number of linguistic variables per antecedent.
         :param domain: list of the limits for each variable. If None (default) the classifier will compute them empirically.
         '''
-        try:
-            from . import utils
-        except ImportError:
-            import utils
+        
 
         self.lvs = None
         #self.vl_names = [FitRuleBaseReg.vl_names[n_linguistic_variables[nn]] if n_linguistic_variables[nn] < 6 else list(map(str, np.arange(nn))) for nn in range(len(n_linguistic_variables))]
@@ -547,7 +551,7 @@ class FitRuleBaseReg(Problem):
         self.vl_names = [lv.linguistic_variable_names() for lv in self.lvs]
         self.fuzzy_type = self.lvs[0].fs_type
         self.domain = None
-        self._precomputed_truth = rules_reg.compute_antecedents_memberships(linguistic_variables, X)
+        self._precomputed_truth = rules_reg.compute_antecedents_memberships_batch(linguistic_variables, X)
 
 
     vl_names = [  # Linguistic variable names prenamed for some specific cases.
@@ -606,6 +610,7 @@ class FitRuleBaseReg(Problem):
         self.n_linguistic_variables = n_linguistic_variables
         self.domain = domain
         self.fuzzy_set_type = fuzzy_set_type
+        self.optimize_lv = optimize_lv
 
         self.antecedents = antecedents
         self.consequent = consequent
@@ -657,25 +662,24 @@ class FitRuleBaseReg(Problem):
         self.consequent_referencial = np.linspace(np.min(y), np.max(y), 100) 
 
         feature_idx_bounds = np.array([[0, self.X.shape[1] - 1]] * self.n_ants * self.n_rules)
+        #feature_idx_bounds = np.array([[0, 1]] * self.n_ants * self.n_rules)
         vl_idx_bounds = np.array([[-1, self.n_linguistic_variables - 1]] * self.n_ants * self.n_rules)
-        antecedent_bounds = np.concatenate((feature_idx_bounds, vl_idx_bounds), axis=0)
 
-        consequent_bounds = np.array([[0, self.n_linguistic_variables-1]] * self.n_rules)
-
-        all_bounds = [antecedent_bounds, consequent_bounds]
+        # antecedent bounds
+        all_bounds = [feature_idx_bounds, vl_idx_bounds]
 
         if optimize_lv:
             n = 4 if fuzzy_set_type == 'trapezoidal' else 3
             n_membership_params = (self.n_ants + 1) * n_linguistic_variables * n
             membership_bounds = np.array([[0, 99]] * n_membership_params)
-            all_bounds.insert(1, membership_bounds)
+            all_bounds.append(membership_bounds)
+
+        consequent_bounds = np.array([[0, self.n_linguistic_variables-1]] * self.n_rules)
+        all_bounds.append(consequent_bounds)
 
         varbound = np.concatenate(all_bounds, axis=0) 
 
-        self.single_gen_size = (n_ants * n_rules) + (n_ants * n_rules) + (n_rules) 
-        if optimize_lv:
-            n = 4 if fuzzy_set_type == 'trapezoidal' else 3
-            self.single_gen_size += ((n_ants + 1) * n_linguistic_variables * n) 
+        self.single_gen_size = len(varbound) 
 
         self.alpha_ = alpha
         self.beta_ = beta
@@ -718,14 +722,15 @@ class FitRuleBaseReg(Problem):
             consequent_lvs_used += [rule.consequent]
 
         if optimize_lv:
-            for ix, fuzzy_variable in enumerate(rule_base.antecedents):
+            for ix in range(self.n_ants):
+                fuzzy_variable = rule_base.antecedents[ix]
                 for linguistic_variable in range(n_lv_possible_ants):
                     fz_parameters = fuzzy_variable[linguistic_variable].membership_parameters
                     parameters_closest_idxs = []
                     for jx, fz_parameter in enumerate(fz_parameters):
                         closest_idx = (np.abs(np.asarray(self.antecedents_referencial[ix]) - fz_parameter)).argmin()
                         parameters_closest_idxs.append(closest_idx)
-                    partitions_params += parameters_closest_idxs
+                    partitions_params += parameters_closest_idxs 
 
             for linguistic_variable in range(n_lv_possible_cons):
                 fz_parameters = rule_base.consequent[linguistic_variable].membership_parameters
@@ -740,13 +745,13 @@ class FitRuleBaseReg(Problem):
 
 
     def _construct_ruleBase(self, x: np.ndarray, fuzzy_type: fs.FUZZY_SETS=None, optimize_lv: bool=False):
+        n = 4 if self.fuzzy_set_type == 'trapezoidal' else 3
         if optimize_lv:
-            fourth_pointer = 2 * self.n_ants * self.n_rules + (self.n_ants + 1) * self.n_linguistic_variables * 3
+            fourth_pointer = 2 * self.n_ants * self.n_rules + (self.n_ants + 1) * self.n_linguistic_variables * n
         else:
             fourth_pointer = 2 * self.n_ants * self.n_rules
 
         rules = []
-
         for i in range(self.n_rules):
             first_pointer = i * self.n_ants
             second_pointer = first_pointer + (self.n_ants * self.n_rules)
@@ -755,19 +760,14 @@ class FitRuleBaseReg(Problem):
 
             ants_lvs_used = x[second_pointer : second_pointer + self.n_ants]
 
-            active_ants_lvs = ants_lvs_used[chosen_antecedents_idx]
-            non_active_ants_lvs = ants_lvs_used[~chosen_antecedents_idx]
-            non_active_ants_lvs[:] = -1
+            ants_lvs_used[~chosen_antecedents_idx] = -1
 
-            ants_lvs_rule_format = np.concatenate((active_ants_lvs, non_active_ants_lvs)) 
-            cons_lv_used = x[fourth_pointer + i]
+            cons_lv_used = int(x[fourth_pointer + i])
 
-            rules.append(RuleSimple(ants_lvs_rule_format, cons_lv_used))
+            rules.append(RuleSimple(ants_lvs_used, cons_lv_used))
         
         if optimize_lv:
-            n = 4 if self.fuzzy_set_type == 'trapezoidal' else 3
             linguistic_variables = []
-
             for i in range(self.n_ants + 1):
                 partitions = []
                 third_pointer = 2 * self.n_ants * self.n_rules + i * self.n_linguistic_variables * n
@@ -776,18 +776,20 @@ class FitRuleBaseReg(Problem):
                     params_start_pointer = third_pointer + j * n
                     domain = [self.min_bounds[i], self.max_bounds[i]]
                     partition_params = x[params_start_pointer : params_start_pointer + n]
-                    partitions.append(TriangularFS(FitRuleBaseReg.vl_names[n][j], partition_params, domain)) 
+                    referential = self.antecedents_referencial[i] if i < self.n_ants else self.consequent_referencial
+                    actual_params = [referential[int(idx)] for idx in partition_params]
+                    if self.fuzzy_set_type == 'trapezoidal':
+                        partitions.append(TrapezoidalFS(FitRuleBaseReg.vl_names[n][j], actual_params, domain))
+                    else:
+                        partitions.append(TriangularFS(FitRuleBaseReg.vl_names[n][j], actual_params, domain))
 
                 linguistic_variables.append(partitions)
             
-            antecedent_names = [ant.name for ant in self.antecedents] 
-            consequent_name = self.consequent.name
-
             antecedents = []
             for i, partitions in enumerate(linguistic_variables[:-1]):
-                antecedents.append(FuzzyVariable(antecedent_names[i], partitions))
+                antecedents.append(FuzzyVariable(f"Antecedent Var {i}", partitions))
 
-            consequent = FuzzyVariable(consequent_name, linguistic_variables[-1])
+            consequent = FuzzyVariable("Consequent", linguistic_variables[-1])
 
             return RuleBaseRegT1(antecedents, rules, consequent)
 
@@ -801,7 +803,7 @@ class FitRuleBaseReg(Problem):
 
         :param out: dict where the F field is the fitness. It is used from the outside.
         '''
-        ruleBase = self._construct_ruleBase(x, self.fuzzy_type)
+        ruleBase = self._construct_ruleBase(x, self.fuzzy_type, optimize_lv=self.optimize_lv)
 
         if len(ruleBase.get_rules()) > 0:
             score = self.fitness_func(ruleBase, self.X, self.y, self.tolerance, self.alpha_, self.beta_, self._precomputed_truth)
@@ -825,6 +827,88 @@ class FitRuleBaseReg(Problem):
         self._evaluate_slow(x, out, *args, **kwargs)
 
 
+    def _evaluate_torch_batch(self, population: 'torch.Tensor', device: 'torch.device') -> 'torch.Tensor':
+        """
+        Evalúa toda la población completamente vectorizado en PyTorch/GPU.
+        Sin bucles Python — opera sobre tensores (pop_size, n_rules, n_samples).
+        Requiere self._cached_memberships y self._cached_consequent_centroids precalculados.
+
+        :param population: tensor (pop_size, n_var) con los genotipos
+        :param device: torch device (CPU o GPU)
+        :return: tensor (pop_size,) con NRMSE por individuo (minimización)
+        """
+        import torch
+
+        pop_size, n_var = population.shape
+        pop_np = population.cpu().numpy().astype(int)
+
+        n_rules = self.n_rules
+        n_ants  = self.n_ants
+        fourth_pointer = 2 * n_ants * n_rules
+
+        # decode genes: 
+        act_genes = pop_np[:, :n_ants * n_rules].reshape(pop_size, n_rules, n_ants).astype(bool) # (pop_size, n_rules, n_ants)
+
+        lv_genes = pop_np[:, n_ants * n_rules : 2 * n_ants * n_rules].reshape(pop_size, n_rules, n_ants) # (pop_size, n_rules, n_ants)
+        lv_genes[~act_genes] = -1 # -1 if inactive
+
+        cons_lv = pop_np[:, fourth_pointer : fourth_pointer + n_rules] # (pop_size, n_rules)
+
+        # load precomputed memberships and centroids using torch:
+        memberships_t = torch.tensor(self._cached_memberships, dtype=torch.float32, device=device) # (n_samples, n_vars, n_labels)
+        y_t           = torch.tensor(self.y.ravel(), dtype=torch.float32, device=device)
+        centroids_t   = torch.tensor(self._cached_consequent_centroids, dtype=torch.float32, device=device)
+
+        n_samples = memberships_t.shape[0]
+        n_labels  = centroids_t.shape[0]
+        value_range = float(y_t.max() - y_t.min()) if y_t.max() != y_t.min() else 1.0
+        fallback    = float(centroids_t.mean())
+
+        # build antecedent tensor:
+        lv_genes_t = torch.tensor(lv_genes, dtype=torch.long, device=device)  # (pop, rules, ants)
+
+        # clamp for secure indexing
+        lv_safe = torch.clamp(lv_genes_t, 0, n_labels - 1)  # (pop, rules, ants)
+
+        mem_perm = memberships_t.permute(1, 2, 0)  # (n_vars, n_labels, n_samples)
+
+        mem_exp = mem_perm.unsqueeze(0).unsqueeze(0)  # (1, 1, n_ants, n_labels, n_samples)
+        mem_exp = mem_exp.expand(pop_size, n_rules, n_ants, n_labels, n_samples)
+
+        # lv_safe: (pop, rules, ants) → (pop, rules, ants, 1, n_samples)
+        lv_idx = lv_safe.unsqueeze(-1).unsqueeze(-1).expand(pop_size, n_rules, n_ants, 1, n_samples)
+
+        # Gather sobre dim 3 (n_labels) → (pop, rules, ants, 1, n_samples)
+        ant_mem = mem_exp.gather(3, lv_idx).squeeze(3)  # (pop, rules, ants, n_samples)
+
+        # inactive antecedents have membership = 1.0, they don't contribute to min t-norm
+        active_mask = (lv_genes_t != -1)
+        act_exp = active_mask.unsqueeze(-1).expand_as(ant_mem)  # (pop, rules, ants, n_samples)
+        ant_mem = torch.where(act_exp, ant_mem, torch.ones_like(ant_mem))
+
+        # min t-norm
+        firing_strengths = ant_mem.min(dim=2).values  # (pop, rules, n_samples)
+
+        # consequent centroids
+        cons_idx = torch.tensor(cons_lv, dtype=torch.long, device=device)
+        cons_idx = torch.clamp(cons_idx, 0, n_labels - 1)
+        rule_centroids = centroids_t[cons_idx]  # (pop_size, n_rules)
+
+        numerator   = torch.einsum('prs,pr->ps', firing_strengths, rule_centroids)
+        denominator = firing_strengths.sum(dim=1)  # (pop, n_samples)
+
+        y_pred = torch.where(
+            denominator > 0,
+            numerator / denominator,
+            torch.full_like(denominator, fallback)
+        )  # (pop_size, n_samples)
+
+        rmse  = torch.sqrt(torch.mean((y_pred - y_t.unsqueeze(0)) ** 2, dim=1))  # (pop,)
+        nrmse = torch.clamp(rmse / value_range, 0.0, 1.0)
+
+        return nrmse  # (pop_size,), already minimized
+
+
     def fitness_func(self, ruleBase: rules_reg.RuleBase, X:np.array, y:np.array, tolerance:float, alpha:float=0.0, beta:float=0.0, precomputed_truth:np.array=None) -> float:
         '''
         Fitness function for the optimization problem.
@@ -842,10 +926,14 @@ class FitRuleBaseReg(Problem):
         this should be the classification_eval method for evalRuleBase object
         other metrics can be used, this is provisional
         '''
-
-        y_pred = ruleBase.inference(X)
+        if precomputed_truth is not None:
+            y_pred = ruleBase.inference_optimized(X, precomputed_truth)
+        else:
+            y_pred = ruleBase.inference_optimized(X)
         # 1 - Normalized RMSE
         score = 1 - (root_mean_squared_error(y, y_pred)) / (self.max_bounds[-1] - self.min_bounds[-1])
+
+        score = max(0.0, min(1.0, score))
 
         # TODO: evalRuleBaseReg ¿?
         """ 
