@@ -54,6 +54,13 @@ class FuzzyVariable():
         self.name = name
         self.units = units
 
+        if len(fuzzy_sets) == 0:
+            raise ValueError("Specified fuzzy sets list is empty.")
+        
+        types = {fuzzy_set.type() for fuzzy_set in fuzzy_sets}
+        if len(types) > 1:
+            raise ValueError("All fuzzy sets must be of the same type.")
+
         for ix, fuzzy_set in enumerate(fuzzy_sets):
             self.linguistic_variables.append(fuzzy_set)
 
@@ -190,9 +197,7 @@ class FuzzyVariable():
         # Property 6: The population of the fuzzy sets-induced memberships must be statistically different from each other
         cond6 = True
         if len(self.linguistic_variables) > 1:
-            from scipy.stats import wilcoxon
             for i in range(len(self.linguistic_variables) - 1):
-                # Wilcoxon signed-rank test is a paired difference test
                 if not self._permutation_validation(memberships[i, :], memberships[i + 1, :], p_value_need=0.05):
                     cond6 = False
                     break

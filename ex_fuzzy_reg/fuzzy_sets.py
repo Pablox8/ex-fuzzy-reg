@@ -451,11 +451,10 @@ def cut(fs1: FS, h: float) -> FS:
     """
     if h < 0 or h > 1:
         raise ValueError("h must be in range [0, 1].")
-
     if h == 0:
         fs2 = TrapezoidalFS(f"cut {fs1.name}",  [0, 0, 0, 0], fs1.domain, h)
         return fs2
-    if h == 1: 
+    if h >= fs1.height: 
         return fs1
 
     if fs1.shape() == 'gaussian':
