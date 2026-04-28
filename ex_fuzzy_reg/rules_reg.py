@@ -50,7 +50,7 @@ class RuleBaseRegT1(RuleBase):
 
     This class supports t1 fs.
     '''
-    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable, tnorm = np.prod) -> None:
+    def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable, tnorm = np.min) -> None:
         '''
         Constructor of the RuleBaseT1 class.
 
@@ -63,7 +63,7 @@ class RuleBaseRegT1(RuleBase):
         self.rules = rules
         self.antecedents = antecedents
         self.consequent = consequent
-        self.tnorm = tnorm
+        self.tnorm = tnorm # tnorm must have axis argument like numpy min and prod
 
 
     def compute_antecedents_memberships(self, x: np.ndarray) -> np.ndarray:
@@ -120,8 +120,7 @@ class RuleBaseRegT1(RuleBase):
                     memberships_for_rule.append(membership_value)
             
             if memberships_for_rule:
-                # TODO: update to use self.tnorm instead of np.min
-                cut_height = np.min(memberships_for_rule)
+                cut_height = self.tnorm(memberships_for_rule)
             else:
                 cut_height = 0.0  
 
@@ -151,7 +150,7 @@ class RuleBaseRegT1(RuleBase):
                 
                 # We want the minimum membership ACROSS variables for each sample
                 # Axis 1 is the variable axis. Result shape: (n_samples,)
-                strength = np.min(rule_memberships, axis=1)
+                strength = self.tnorm(rule_memberships, axis=1)
             else:
                 # Rule with no antecedents fires at 1.0 (identity) or 0.0
                 strength = np.ones(n_samples)
