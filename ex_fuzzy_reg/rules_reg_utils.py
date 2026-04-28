@@ -74,7 +74,7 @@ def generate_trapezoidal_partitions(data: np.ndarray, n_labels: int=3, fs_label_
             else:
                 left  = quantiles[j - 1, i]
                 mid_left = quantiles[j, i]
-                mid_right = quantiles[j + 1, i] if j + 1 < n_labels else label_max
+                mid_right = quantiles[j + 1, i] if j + 1 < n_labels else mid_left
                 right = quantiles[j + 2, i] if j + 2 < n_labels else label_max
                 params = [left, mid_left, mid_right, right]
             
@@ -120,7 +120,7 @@ def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, n_
         else:
             last_DOF = rules[antecedents][1]
 
-            if last_DOF < dof: 
+            if last_DOF < dof: # if 2 rules map to the same antecedents, only the one with the highest DOF wins 
                 rules[antecedents] = (consequent, dof)
     
     rules_list = []

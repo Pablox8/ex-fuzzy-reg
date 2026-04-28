@@ -45,10 +45,10 @@ def compute_antecedents_memberships_batch(antecedents: list[fv.FuzzyVariable], X
 # TODO: add tests and document for this module
 class RuleBaseRegT1(RuleBase):
     '''
-    Class optimized to work with multiple rules at the same time. Supports only one consequent.
-    (Use one rulebase per consequent to study classification problems. Check MasterRuleBase class for more documentation)
-
-    This class supports t1 fs.
+    Rule base for Type-1 Mamdani regression.
+    
+    Supports multiple rules with a single fuzzy consequent variable.
+    Evaluation uses a configurable t-norm (default: minimum) across antecedents.
     '''
     def __init__(self, antecedents: list[fv.FuzzyVariable], rules: list[RuleSimple], consequent: fv.FuzzyVariable, tnorm = np.min) -> None:
         '''
@@ -59,6 +59,10 @@ class RuleBaseRegT1(RuleBase):
             rules (list[RuleSimple]): list of rules.
             consequent (FuzzyVariable): fuzzy variable that is the consequent of the rules. 
             tnorm: t-norm used to compute the fuzzy output.
+        
+        Note: 
+            super().__init__() is intentionally not called. RuleBase expects ex-fuzzy's fuzzyVariable; this class uses
+            ex_fuzzy_reg's FuzzyVariable. We inherit only for method access, not for constructor behaviour.
         '''
         self.rules = rules
         self.antecedents = antecedents

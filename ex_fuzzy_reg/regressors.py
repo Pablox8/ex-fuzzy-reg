@@ -27,7 +27,10 @@ class MamdaniFIS(BaseEstimator, RegressorMixin):
 
         if not self.linguistic_variables:
             # TODO: extract label_names and fuzzy variable names from X and y
-            self.linguistic_variables = utils.generate_triangular_partitions(data, self.n_labels) 
+            if self.linguistic_variables_type == 'triangular':
+                self.linguistic_variables = utils.generate_triangular_partitions(data, self.n_labels) 
+            elif self.linguistic_variables_type == 'trapezoidal':
+                self.linguistic_variables = utils.generate_trapezoidal_partitions(data, self.n_labels) 
       
         self.rule_base = utils.generate_rules(data, self.linguistic_variables, self.n_rules, self.tolerance)
         return self
@@ -53,7 +56,7 @@ class MamdaniFIS(BaseEstimator, RegressorMixin):
             rules_learned.append([rule.antecedents, rule.consequent])
 
         model_data = {
-            "model": __class__.__name__,
+            "model": type(self).__name__,
             "fuzzy_type": self.fuzzy_type.name,
             "linguistic_variables_type": self.linguistic_variables_type,
             "linguistic_variables": linguistic_vars_str,
