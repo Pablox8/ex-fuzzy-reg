@@ -45,6 +45,7 @@ from ex_fuzzy_reg import evolutionary_backends_reg as ev_backends
 from ex_fuzzy_reg.fuzzy_sets import TriangularFS, TrapezoidalFS
 from ex_fuzzy_reg.fuzzy_variable import FuzzyVariable
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
+from ex_fuzzy_reg import rules_reg_utils
 
 # Handle pymoo version compatibility for parallelization
 try:
@@ -301,7 +302,7 @@ class BaseFuzzyRulesRegressor(RegressorMixin, BaseEstimator):
                 self.performance = 1 - result['F']
         else: """
 
-        # Precalcular caché para _evaluate_torch_batch si se usa EvoX
+        # precalculate memberships for _evaluate_torch_batch if using EvoX
         if self.backend.name() == 'evox':
             problem._cached_memberships = np.stack([
                 ant.compute_memberships(X[:, ix]).T
@@ -792,6 +793,20 @@ class FitRuleBaseReg(Problem):
             consequent = FuzzyVariable("Consequent", linguistic_variables[-1])
 
             return RuleBaseRegT1(antecedents, rules, consequent)
+        
+        antecedents = self.antecedents
+        consequent = self.consequent
+        if antecedents is None or consequent is None:
+            data = np.hstack([self.X, self.y])
+            gen_fn = (rules_reg_utils.generate_trapezoidal_partitions
+                    if self.fuzzy_set_type == 'trapezoidal'
+                    else rules_reg_utils.generate_triangular_partitions)
+            all_partitions = gen_fn(data, n_labels=self.n_linguistic_variables,
+                                    fv_label_names=self.var_names + ["Consequent"])
+            if antecedents is None:
+                antecedents = all_partitions[:-1]
+            if consequent is None:
+                consequent = all_partitions[-1]
 
         return RuleBaseRegT1(self.antecedents, rules, self.consequent)
 
