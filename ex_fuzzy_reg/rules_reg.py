@@ -1,3 +1,12 @@
+"""
+Fuzzy rule base implementations for regression.
+
+Contains:
+    - RuleBaseRegT1: Type-1 Mamdani rule base for regression.
+    - RuleBaseRegTSK: Takagi-Sugeno-Kang rule base for regression.
+    - Helper functions: compute_antecedents_memberships, compute_antecedents_memberships_batch.
+"""
+
 import numpy as np
 from ex_fuzzy.rules import RuleSimple, RuleBase
 
@@ -35,7 +44,7 @@ def compute_antecedents_memberships(antecedents: list[fv.FuzzyVariable], x: np.n
 
 def compute_antecedents_memberships_batch(antecedents: list[fv.FuzzyVariable], X: np.ndarray) -> np.ndarray:
     # X shape: (n_samples, n_vars)
-    # Salida:  (n_samples, n_vars, n_labels)
+    # Output shape:  (n_samples, n_vars, n_labels)
     result = np.stack([
         antecedent.compute_memberships(X[:, ix]).T  # (n_samples, n_labels)
         for ix, antecedent in enumerate(antecedents)
@@ -103,7 +112,7 @@ class RuleBaseRegT1(RuleBase):
     
     def compute_antecedents_memberships_batch(self, X: np.ndarray) -> np.ndarray:
         # X shape: (n_samples, n_vars)
-        # Salida:  (n_samples, n_vars, n_labels)
+        # Output shape:  (n_samples, n_vars, n_labels)
         result = np.stack([
             antecedent.compute_memberships(X[:, ix]).T  # (n_samples, n_labels)
             for ix, antecedent in enumerate(self.antecedents)
@@ -149,11 +158,8 @@ class RuleBaseRegT1(RuleBase):
             valid_mfs = ants[valid_vars]
             
             if valid_vars.size > 0:
-                # Shape: (n_samples, len(valid_vars))
                 rule_memberships = memberships_batch[:, valid_vars, valid_mfs]
                 
-                # We want the minimum membership ACROSS variables for each sample
-                # Axis 1 is the variable axis. Result shape: (n_samples,)
                 strength = self.tnorm(rule_memberships, axis=1)
             else:
                 # Rule with no antecedents fires at 1.0 (identity) or 0.0
@@ -161,9 +167,6 @@ class RuleBaseRegT1(RuleBase):
 
             all_rule_strengths.append(strength)
 
-        # all_rule_strengths is a list of length n_rules
-        # Each element is an array of shape (n_samples,)
-        # np.column_stack joins them into (n_samples, n_rules)
         return np.column_stack(all_rule_strengths)
     
 
@@ -210,32 +213,22 @@ class RuleBaseRegT1(RuleBase):
         if X.ndim == 1:
             X = X.reshape(1, -1)
         
-        # 1. Compute memberships for all samples at once
-        # Shape: (n_samples, n_vars, n_labels)
         if precomputed_truth is None:
             memberships_batch = self.compute_antecedents_memberships_batch(X)
         else:
             memberships_batch = precomputed_truth
         
-        # 2. Compute rule firing strengths (t-norm) for all rules and samples
-        # Shape: (n_samples, n_rules)
         firing_strengths = self.compute_cut_heights_batch(memberships_batch)
-        #print(firing_strengths.shape)
         
-        # 3. Get consequent centroids (or singleton values)
-        # For Mamdani regression, we often use the center of the consequent FS
         consequent_values = np.array([
-            self.consequent[rule.consequent].centroid() # Assuming centroid() exists
+            self.consequent[rule.consequent].centroid() 
             for rule in self.rules
         ])
 
-        # 4. Weighted Average Defuzzification
-        # Output = sum(firing_strength * consequent_value) / sum(firing_strength)
         numerator = np.dot(firing_strengths, consequent_values)
         denominator = np.sum(firing_strengths, axis=1)
 
-        # Avoid division by zero
-        fallback = np.mean(consequent_values)
+        fallback = np.mean(consequent_values) # avoid division by zero
 
         y_pred = np.divide(
             numerator, 
