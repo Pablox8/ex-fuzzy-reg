@@ -58,7 +58,12 @@ class FUZZY_SETS(enum.Enum):
     gt2 = 'General Type 2'
 
     def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, FUZZY_SETS):
+            return NotImplemented
         return self.value == __value.value
+
+    def __hash__(self) -> int:
+        return hash(self.value)
 
 
 class FS(abc.ABC):
@@ -476,13 +481,14 @@ def cut(fs1: FS, h: float) -> FS:
         return TrapezoidalFS(f"cut {fs1.name}", [a, z1, z2, d], fs1.domain, h)
 
     m_params = fs1.membership_parameters
+    orig_h = fs1.height
 
-    z1 = m_params[0] + h * (m_params[1] - m_params[0])
+    z1 = m_params[0] + (h / orig_h) * (m_params[1] - m_params[0])
 
     if fs1.shape() == 'triangular':
-        z2 = m_params[2] - h * (m_params[2] - m_params[1])
+        z2 = m_params[2] - (h / orig_h) * (m_params[2] - m_params[1])
     else:
-        z2 = m_params[2] + h * (m_params[3] - m_params[2])
+        z2 = m_params[2] + (h / orig_h) * (m_params[3] - m_params[2])
 
     fs2 = TrapezoidalFS(f"cut {fs1.name}", [m_params[0], z1, z2, m_params[-1]], fs1.domain, h)
     return fs2
@@ -571,7 +577,7 @@ def trapezoidal_triangular_union(fuzzy_sets: list[FS]) -> tuple[np.ndarray, np.n
         tuple[np.ndarray, np.ndarray]: x and y component of the calculated union points. Both have the same shape.
             - x (np.ndarray): Sorted x-coordinates covering all fuzzy sets and their intersections.
             - y (np.ndarray): Corresponding y-values representing the maximum membership at each x.
-        Returns (None, None) if no fuzzy sets are passed or all passed fuzzy sets are empty.
+        Returns ([], []) if no fuzzy sets are passed or all passed fuzzy sets are empty.
     """
     if not fuzzy_sets:
         return [], [] # no fuzzy sets passed
@@ -691,7 +697,7 @@ def centroid_defuzzification(p_x: ArrayLike, p_y: ArrayLike) -> float:
     den = m * ba2 + n * ba
 
     if np.sum(den) == 0:
-        return np.nan
+        return 0.0 
 
     x_crisp = np.sum(num) / np.sum(den)
 
