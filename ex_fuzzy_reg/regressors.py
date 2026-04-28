@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from sklearn.base import RegressorMixin
+from sklearn.base import BaseEstimator, RegressorMixin
 
 from ex_fuzzy.rules import RuleSimple
 
@@ -10,7 +10,7 @@ from ex_fuzzy_reg import rules_reg_utils as utils
 from ex_fuzzy_reg.rules_reg import RuleBaseRegT1
 
 
-class MamdaniFIS(RegressorMixin):
+class MamdaniFIS(BaseEstimator, RegressorMixin):
     def __init__(self, fuzzy_type: fs.FUZZY_SETS, linguistic_variables_type: str='triangular', linguistic_variables: list[fv.FuzzyVariable]=None, n_rules: int=30, n_labels: int=3, tolerance: float=0.0) -> None:
         self.fuzzy_type = fuzzy_type
         self.linguistic_variables = linguistic_variables
@@ -30,10 +30,11 @@ class MamdaniFIS(RegressorMixin):
             self.linguistic_variables = utils.generate_triangular_partitions(data, self.n_labels) 
       
         self.rule_base = utils.generate_rules(data, self.linguistic_variables, self.n_rules, self.tolerance)
+        return self
 
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        y_pred = self.rule_base.inference(X)
+        y_pred = self.rule_base.inference_optimized(X)
         return y_pred
 
 
