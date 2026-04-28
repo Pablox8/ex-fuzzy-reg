@@ -54,19 +54,19 @@ class FuzzyVariable():
         self.name = name
         self.units = units
 
-        for ix, fs in enumerate(fuzzy_sets):
-            self.linguistic_variables.append(fs)
+        for ix, fuzzy_set in enumerate(fuzzy_sets):
+            self.linguistic_variables.append(fuzzy_set)
 
         self.fs_type = self.linguistic_variables[0].type()
 
 
-    def append(self, fs: FS) -> None:
+    def append(self, fuzzy_set: FS) -> None:
         '''
         Appends a fuzzy set to the fuzzy variable.
 
-        :param fs: FS. Fuzzy set to append.
+        :param fuzzy_set: FS. Fuzzy set to append.
         '''
-        self.linguistic_variables.append(fs)
+        self.linguistic_variables.append(fuzzy_set)
 
 
     def linguistic_variable_names(self) -> list:
@@ -75,7 +75,7 @@ class FuzzyVariable():
 
         :return: list of strings.
         '''
-        return [fs.name for fs in self.linguistic_variables]
+        return [fuzzy_set.name for fuzzy_set in self.linguistic_variables]
 
 
     def get_linguistic_variables(self) -> list[FS]:
@@ -163,7 +163,7 @@ class FuzzyVariable():
             print('Property 1 violated: More than one fuzzy set has a membership of 1 at the same time.')
 
         # Property 2: All fuzzy sets are fuzzy numbers is fullfilled if they are trapezoidal or gaussian
-        cond2 = all([fs.shape() in ['trapezoidal', 'triangular', 'gaussian'] for fs in self.linguistic_variables])
+        cond2 = all([fuzzy_set.shape() in ['trapezoidal', 'triangular', 'gaussian'] for fuzzy_set in self.linguistic_variables])
         if not cond2 and verbose:
             print('Property 2 violated: Not all fuzzy sets are fuzzy numbers (trapezoidal or gaussian).')
 
@@ -243,8 +243,8 @@ class FuzzyVariable():
         :param item: int. Index of the FS.
         :return: FS. The corresponding FS.
         '''
-        for fs in self.linguistic_variables:
-            yield fs
+        for fuzzy_set in self.linguistic_variables:
+            yield fuzzy_set
 
 
     def __len__(self) -> int:

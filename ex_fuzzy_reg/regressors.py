@@ -43,8 +43,8 @@ class MamdaniFIS(BaseEstimator, RegressorMixin):
 
         for var in self.linguistic_variables:
             linguistic_vars_str[var.name] = {}
-            for fs in var.linguistic_variables:
-                linguistic_vars_str[var.name][fs.name] = fs.membership_parameters
+            for fuzzy_set in var.linguistic_variables:
+                linguistic_vars_str[var.name][fuzzy_set.name] = fuzzy_set.membership_parameters
         
         rules = self.rule_base.get_rules()
         rules_learned = []
