@@ -80,6 +80,7 @@ def load_from_json(path: str = "./model.json"):
     for lv_name, lv_fuzzy_sets in lvs.items():
         fuzzy_sets = []
         for fs_name, membership_parameters in lv_fuzzy_sets.items():
+            # TODO: implement loading for trapezoidal and gaussian
             if linguistic_variables_type == 'triangular':
                 fuzzy_sets.append(fs.TriangularFS(fs_name, membership_parameters, [-np.inf, np.inf])) # TODO: domain
 

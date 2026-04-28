@@ -403,27 +403,31 @@ class GaussianFS(FS):
 
 # TODO: Implement CategoricalFS
 class CategoricalFS(FS):
-    pass
-
+    def __init__(self):
+        raise NotImplementedError
 
 # TODO: Implement GT2
 class GT2(FS):
-    pass
+    def __init__(self):
+        raise NotImplementedError
 
 
 # TODO: Implement IVFS
 class IVFS(FS):
-    pass
+    def __init__(self):
+        raise NotImplementedError
 
 
 # TODO: Implement CategoricalIVFS
 class CategoricalIVFS(IVFS):
-    pass
+    def __init__(self):
+        raise NotImplementedError
 
 
 # TODO: Implement GaussianIVFS
 class GaussianIVFS(IVFS):
-    pass
+    def __init__(self):
+        raise NotImplementedError
 
 
 def cut(fs1: FS, h: float) -> FS:
