@@ -104,7 +104,7 @@ class FuzzyVariable():
         res = []
         try:
             x = np.clip(x, self.linguistic_variables[0].domain[0], self.linguistic_variables[0].domain[1])
-        except Exception as e:
+        except (TypeError, AttributeError) as e:
             pass
 
         for fuzzy_set in self.linguistic_variables:

@@ -205,7 +205,7 @@ class RuleBaseRegT1(RuleBase):
                 x_crisp = fs.centroid_defuzzification(p_x, p_y)
             output.append(x_crisp)
         
-        return np.array(output).reshape(-1, 1)
+        return np.array(output)
 
 
     def inference_optimized(self, X: np.ndarray, precomputed_truth=None) -> np.ndarray:
@@ -383,7 +383,7 @@ def generate_tsk_rule_string(rule: RuleSimpleTSK, antecedents: list) -> str:
     for jx, antecedent in enumerate(antecedents):
         keys = antecedent.linguistic_variable_names()
 
-        if antecedents[jx] != -1:
+        if rule.antecedents[jx] != -1:
             if not initiated:
                 initiated = True
             else:
