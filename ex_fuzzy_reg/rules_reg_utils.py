@@ -88,12 +88,14 @@ def generate_trapezoidal_partitions(data: np.ndarray, n_labels: int=3, fs_label_
     return partitions
 
 
-def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, n_rules: int=None, tolerance: float=None) -> RuleBaseRegT1:
-    if tolerance and (tolerance < 0 or tolerance > 1):
-        tolerance = None
+def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, n_rules: int=0, tolerance: float=0.0) -> RuleBaseRegT1:
+    if tolerance < 0.0 or tolerance > 1.0:
+        print("Warning: tolerance not in range [0, 1], setting tolerance=0.0.")
+        tolerance = 0.0
     
-    if n_rules and n_rules < 0:
-        n_rules = None
+    if n_rules < 0:
+        print("Warning: negative n_rules, setting n_rules=0.")
+        n_rules = 0
 
     m = data.shape[0]
     if not partitions:
@@ -107,7 +109,7 @@ def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, n_
 
         dof = np.prod(memberships.max(axis=1)) # degree of fulfillment
 
-        if tolerance and dof < tolerance:
+        if dof < tolerance:
             continue
 
         antecedents = tuple(labels[:-1])
@@ -128,7 +130,7 @@ def generate_rules(data: np.ndarray, partitions: list[fv.FuzzyVariable]=None, n_
         rules_list.append(RuleSimple(list(antecedents), consequent))
         dofs.append(dof)
 
-    if not n_rules:
+    if n_rules == 0: # select all rules
         return RuleBaseRegT1(partitions[:-1], rules_list, partitions[-1])
      
     dofs = np.array(dofs)
